@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// MODEL UNTUK PENGGUNA/ADMIN/RESEPSIONIS
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String // Nanti akan di-hash
+  role      UserRole  @default(RECEPTIONIST)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relasi: User bisa melakukan banyak check-in dan check-out
+  checkedInBookings  Booking[] @relation("CheckedInBy")
+  checkedOutBookings Booking[] @relation("CheckedOutBy")
+}
+
+enum UserRole {
+  ADMIN
+  RECEPTIONIST
+}
+
+
+// MODEL UNTUK DATA MASTER KAMAR
+model Room {
+  id          String   @id @default(cuid())
+  roomNumber  String   @unique // Contoh: "101", "Hasan"
+  floor       Int      // Contoh: 1, 2
+  type        RoomType @default(STANDARD)
+  status      RoomStatus @default(AVAILABLE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relasi: Satu kamar bisa punya banyak foto
+  images      RoomImage[]
+  // Relasi: Satu kamar bisa punya banyak histori booking
+  bookings    Booking[]
+}
+
+enum RoomType {
+  STANDARD
+  SPECIAL // Untuk kamar seperti 101, Hasan, Husen
+}
+
+enum RoomStatus {
+  AVAILABLE // Tersedia
+  OCCUPIED  // Terisi
+  MAINTENANCE // Dalam Perbaikan
+}
+
+// Model untuk menyimpan URL foto kamar
+model RoomImage {
+  id        String   @id @default(cuid())
+  url       String
+  roomId    String
+  createdAt DateTime @default(now())
+
+  // Relasi ke model Room
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+
+// MODEL UTAMA UNTUK TRANSAKSI BOOKING
+model Booking {
+  id                 String       @id @default(cuid())
+  guestName          String       // Nama Wali Santri
+  studentName        String
+  addressId          String       // ID Kabupaten dari API
+  checkIn            DateTime     @default(now())
+  checkOut           DateTime?    // Bisa null saat belum checkout
+  expectedCheckOut   DateTime     // Waktu seharusnya checkout
+  durationInDays     Int // <-- Tambahkan ini
+  baseFee            Float        // Tarif dasar kamar
+  lateFee            Float?       // Denda keterlambatan
+  totalFee           Float        // Total biaya (dasar + denda + sanksi)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  // Relasi
+  roomId             String
+  room               Room         @relation(fields: [roomId], references: [id])
+  checkedInById      String
+  checkedInBy        User         @relation("CheckedInBy", fields: [checkedInById], references: [id])
+  checkedOutById     String?
+  checkedOutBy       User?        @relation("CheckedOutBy", fields: [checkedOutById], references: [id])
+  
+  // Relasi ke denda barang
+  charges            BookingCharge[]
+}
+
+enum BookingType {
+  HALF_DAY // Setengah Hari
+  FULL_DAY // Satu Hari
+}
+
+
+// MODEL UNTUK MASTER ITEM SANKSI
+model ChargeableItem {
+  id           String  @id @default(cuid())
+  itemName     String  @unique
+  chargeAmount Float
+
+  // Relasi
+  bookings     BookingCharge[]
+}
+
+// MODEL UNTUK MENCATAT SANKSI PER BOOKING
+model BookingCharge {
+  id             String @id @default(cuid())
+  quantity       Int    @default(1)
+  
+  // Relasi
+  bookingId      String
+  booking        Booking @relation(fields: [bookingId], references: [id])
+  chargeableItemId String
+  chargeableItem ChargeableItem @relation(fields: [chargeableItemId], references: [id])
+}

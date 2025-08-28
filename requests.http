@@ -1,0 +1,12 @@
+### Create a New Room
+POST http://localhost:3000/api/rooms
+Content-Type: application/json
+
+{
+  "roomNumber": "102",
+  "floor": "1",
+  "type": "STANDARD"
+}
+
+### Get All Rooms
+GET http://localhost:3000/api/rooms
