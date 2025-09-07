@@ -1,6 +1,8 @@
 import DashboardStats from "@/components/DashboardStats";
+import DashboardCharts from "@/components/DashboardCharts"; // <-- Import
 import RoomCard from "@/components/RoomCard"; // <-- Import komponen baru
 import prisma from "@/lib/prisma";
+
 
 async function getRooms() {
   return prisma.room.findMany({
@@ -31,7 +33,7 @@ export default async function AdminDashboardPage() {
     <div>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
       <DashboardStats />
-      
+      <DashboardCharts /> {/* <-- Panggil komponen di sini */}
       <h2 className="text-xl font-bold mt-8 mb-4">Status Kamar</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {rooms.map((room) => (

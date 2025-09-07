@@ -1,7 +1,7 @@
 // Tipe data untuk statistik kita
 type Stats = {
   totalRooms: number;
-  availableRooms: number;
+  AVAILABLERooms: number;
   occupiedRooms: number;
   maintenanceRooms: number;
 };
@@ -33,7 +33,7 @@ export default async function DashboardStats() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatCard title="Total Kamar" value={stats.totalRooms} />
-      <StatCard title="Tersedia" value={stats.availableRooms} />
+      <StatCard title="AVAILABLE" value={stats.AVAILABLERooms} />
       <StatCard title="Terisi" value={stats.occupiedRooms} />
       <StatCard title="Dalam Perbaikan" value={stats.maintenanceRooms} />
     </div>

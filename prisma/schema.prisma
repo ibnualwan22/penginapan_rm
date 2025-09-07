@@ -53,7 +53,7 @@ enum RoomType {
 }
 
 enum RoomStatus {
-  AVAILABLE // Tersedia
+  AVAILABLE // AVAILABLE
   OCCUPIED  // Terisi
   MAINTENANCE // Dalam Perbaikan
 }

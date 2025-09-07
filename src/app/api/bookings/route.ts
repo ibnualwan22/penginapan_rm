@@ -48,7 +48,6 @@ export async function POST(request: Request) {
         guestName,
         studentName,
         addressId,
-        bookingType,
         baseFee,
         totalFee: baseFee, // Total awal sama dengan tarif dasar
         checkIn: checkInTime,

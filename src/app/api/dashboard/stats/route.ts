@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 export async function GET() {
   try {
     // Jalankan semua query secara bersamaan untuk efisiensi
-    const [totalRooms, availableRooms, occupiedRooms, maintenanceRooms] = 
+    const [totalRooms, AVAILABLERooms, occupiedRooms, maintenanceRooms] = 
       await Promise.all([
         prisma.room.count(),
         prisma.room.count({ where: { status: 'AVAILABLE' } }),
@@ -14,7 +14,7 @@ export async function GET() {
 
     const stats = {
       totalRooms,
-      availableRooms,
+      AVAILABLERooms,
       occupiedRooms,
       maintenanceRooms,
     };
