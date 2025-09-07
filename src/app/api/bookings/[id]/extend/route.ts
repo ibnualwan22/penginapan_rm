@@ -6,17 +6,15 @@ type ExtensionType = 'FULL_DAY' | 'HALF_DAY';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // 👈 params adalah Promise
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // ✅ Wajib di-await
     const { id: bookingId } = await params;
-
     const body = await request.json();
-    const extensionType = (body?.extensionType ?? '') as ExtensionType;
+    const { extensionType, duration } = body as { extensionType: ExtensionType, duration: number };
 
-    if (extensionType !== 'FULL_DAY' && extensionType !== 'HALF_DAY') {
-      return new NextResponse('extensionType tidak valid', { status: 400 });
+    if (!extensionType) {
+      return new NextResponse('Tipe perpanjangan tidak valid', { status: 400 });
     }
 
     const booking = await prisma.booking.findUnique({
@@ -24,20 +22,26 @@ export async function PATCH(
       include: { room: true },
     });
 
-    if (!booking) {
+    if (!booking || !booking.room) {
       return new NextResponse('Booking tidak ditemukan', { status: 404 });
     }
 
-    // --- Kalkulasi ---
-    const isSpecial = booking.room?.type === 'SPECIAL';
-    const extensionFee =
-      extensionType === 'FULL_DAY'
-        ? (isSpecial ? 350_000 : 300_000)
-        : (isSpecial ? 300_000 : 250_000);
+    // --- Kalkulasi Biaya & Waktu yang Diperbarui ---
+    const isSpecial = booking.room.type === 'SPECIAL';
+    let extensionFee = 0;
+    let hoursToAdd = 0;
+    let daysToAdd = 0;
 
-    const hoursToAdd = extensionType === 'FULL_DAY' ? 24 : 12;
+    if (extensionType === 'FULL_DAY') {
+      daysToAdd = duration > 0 ? duration : 1;
+      const dailyRate = isSpecial ? 350_000 : 300_000;
+      extensionFee = dailyRate * daysToAdd;
+      hoursToAdd = daysToAdd * 24;
+    } else { // HALF_DAY
+      extensionFee = isSpecial ? 300_000 : 250_000;
+      hoursToAdd = 12;
+    }
 
-    // Pastikan expectedCheckOut berupa Date
     const currentExpected = new Date(booking.expectedCheckOut);
     const newExpectedCheckOut = addHours(currentExpected, hoursToAdd);
 
@@ -48,6 +52,10 @@ export async function PATCH(
         expectedCheckOut: newExpectedCheckOut,
         baseFee: { increment: extensionFee },
         totalFee: { increment: extensionFee },
+        // Tambahkan juga durasi harinya ke data yang sudah ada
+        durationInDays: {
+          increment: daysToAdd,
+        },
       },
       include: { room: true },
     });
@@ -58,3 +66,4 @@ export async function PATCH(
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
+

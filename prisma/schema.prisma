@@ -74,12 +74,14 @@ model RoomImage {
 model Booking {
   id                 String       @id @default(cuid())
   guestName          String       // Nama Wali Santri
+  guestPhone         String?
   studentName        String
   addressId          String       // ID Kabupaten dari API
   checkIn            DateTime     @default(now())
   checkOut           DateTime?    // Bisa null saat belum checkout
   expectedCheckOut   DateTime     // Waktu seharusnya checkout
-  durationInDays     Int // <-- Tambahkan ini
+  bookingType        BookingType  // <-- PASTIKAN BARIS INI ADA
+  durationInDays   Int         @default(0) // <-- default 0
   baseFee            Float        // Tarif dasar kamar
   lateFee            Float?       // Denda keterlambatan
   totalFee           Float        // Total biaya (dasar + denda + sanksi)

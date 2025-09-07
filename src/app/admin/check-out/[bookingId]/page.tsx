@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 // Tipe data untuk item sanksi
 type ChargeableItem = {
@@ -31,7 +33,8 @@ export default function CheckOutPage() {
   const [isLoading, setIsLoading] = useState(true);
   
   // State untuk fitur perpanjangan durasi
-  const [extensionType, setExtensionType] = useState('FULL_DAY');
+  const [extensionType, setExtensionType] = useState<'FULL_DAY' | 'HALF_DAY'>('FULL_DAY');
+  const [extensionDuration, setExtensionDuration] = useState(1);
   
   // State untuk fitur sanksi
   const [chargeableItems, setChargeableItems] = useState<ChargeableItem[]>([]);
@@ -68,7 +71,7 @@ export default function CheckOutPage() {
     const res = await fetch(`/api/bookings/${bookingId}/extend`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ extensionType }),
+      body: JSON.stringify({ extensionType, duration: extensionDuration }),
     });
     if (res.ok) {
         const updatedBooking = await res.json();
@@ -132,17 +135,30 @@ export default function CheckOutPage() {
           
           <div className="border-t pt-4">
             <h3 className="font-semibold mb-2">Perpanjang Durasi Menginap</h3>
-            <div className="flex items-center space-x-2">
-              <Select onValueChange={setExtensionType} defaultValue="FULL_DAY">
-                <SelectTrigger><SelectValue placeholder="Pilih durasi..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FULL_DAY">Satu Hari</SelectItem>
-                  <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleExtendStay} variant="outline" disabled={isLoading}>
-                Tambah Durasi
-              </Button>
+            <div className="grid grid-cols-3 items-end gap-2">
+              <div className="col-span-3 sm:col-span-1">
+                  <Label>Tipe</Label>
+                  <Select value={extensionType} onValueChange={(v) => setExtensionType(v as 'FULL_DAY' | 'HALF_DAY')}>
+                      <SelectTrigger><SelectValue placeholder="Pilih durasi..." /></SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="FULL_DAY">Per Hari</SelectItem>
+                          <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
+                      </SelectContent>
+                  </Select>
+              </div>
+
+              {extensionType === 'FULL_DAY' && (
+                <div className="col-span-3 sm:col-span-1">
+                    <Label>Jumlah Hari</Label>
+                    <Input type="number" value={extensionDuration} onChange={(e) => setExtensionDuration(parseInt(e.target.value))} min="1" />
+                </div>
+              )}
+              
+              <div className="col-span-3 sm:col-span-1">
+                <Button onClick={handleExtendStay} variant="outline" className="w-full" disabled={isLoading}>
+                  Tambah Durasi
+                </Button>
+              </div>
             </div>
           </div>
           
