@@ -24,6 +24,64 @@ type AddedCharge = {
   itemPrice: number;
 };
 
+// Helper function untuk menghitung dan merinci denda
+const calculateLateFeeDetails = (booking: any) => {
+    if (!booking || !booking.room) return { total: 0, breakdown: [] };
+
+    const now = new Date();
+    const totalLateHours = Math.max(0, Math.ceil((now.getTime() - new Date(booking.expectedCheckOut).getTime()) / 3600000));
+    
+    if (totalLateHours === 0) return { total: 0, breakdown: [] };
+
+    const isSpecial = booking.room.type === 'SPECIAL';
+    const rates = {
+        hourlyRate: 20_000,
+        halfDayRate: isSpecial ? 300_000 : 250_000,
+        fullDayRate: isSpecial ? 350_000 : 300_000,
+    };
+
+    let lateFee = 0;
+    const breakdown: { label: string, amount: number }[] = [];
+
+    const fullDaysLate = Math.floor(totalLateHours / 24);
+    if (fullDaysLate > 0) {
+        const fee = fullDaysLate * rates.fullDayRate;
+        lateFee += fee;
+        breakdown.push({ label: `Tambah Paket ${fullDaysLate} Hari Penuh`, amount: fee });
+    }
+
+    const remainingHours = totalLateHours % 24;
+    if (remainingHours > 0) {
+        if (remainingHours <= 11) {
+            const fee = remainingHours * rates.hourlyRate;
+            lateFee += fee;
+            breakdown.push({ label: `Denda ${remainingHours} Jam`, amount: fee });
+        } else if (remainingHours <= 15) {
+            const fee = rates.halfDayRate + ((remainingHours - 12) * rates.hourlyRate);
+            lateFee += fee;
+            breakdown.push({ label: 'Tambah Paket Setengah Hari', amount: rates.halfDayRate });
+            if (remainingHours > 12) {
+                breakdown.push({ label: `Denda ${remainingHours - 12} Jam`, amount: (remainingHours - 12) * rates.hourlyRate });
+            }
+        } else { // 16-23 jam
+            const scenarioA = rates.halfDayRate + ((remainingHours - 12) * rates.hourlyRate);
+            const fee = Math.min(scenarioA, rates.fullDayRate);
+            lateFee += fee;
+            if (fee === rates.fullDayRate) {
+                breakdown.push({ label: 'Pembulatan Paket 1 Hari', amount: fee });
+            } else {
+                // Skenario ini seharusnya tidak terjadi dengan aturan harga sekarang, tapi sebagai cadangan
+                breakdown.push({ label: 'Tambah Paket Setengah Hari', amount: rates.halfDayRate });
+                if (remainingHours > 12) {
+                    breakdown.push({ label: `Denda ${remainingHours - 12} Jam`, amount: (remainingHours - 12) * rates.hourlyRate });
+                }
+            }
+        }
+    }
+
+    return { total: lateFee, breakdown };
+};
+
 export default function CheckOutPage() {
   const router = useRouter();
   const params = useParams();
@@ -32,11 +90,9 @@ export default function CheckOutPage() {
   const [booking, setBooking] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State untuk fitur perpanjangan durasi
   const [extensionType, setExtensionType] = useState<'FULL_DAY' | 'HALF_DAY'>('FULL_DAY');
   const [extensionDuration, setExtensionDuration] = useState(1);
   
-  // State untuk fitur sanksi
   const [chargeableItems, setChargeableItems] = useState<ChargeableItem[]>([]);
   const [selectedChargeId, setSelectedChargeId] = useState<string>('');
   const [addedCharges, setAddedCharges] = useState<AddedCharge[]>([]);
@@ -75,7 +131,7 @@ export default function CheckOutPage() {
     });
     if (res.ok) {
         const updatedBooking = await res.json();
-        setBooking(updatedBooking); // Perbarui data di halaman
+        setBooking(updatedBooking);
     }
     setIsLoading(false);
   };
@@ -92,7 +148,7 @@ export default function CheckOutPage() {
           itemPrice: selectedItem.chargeAmount,
         }
       ]);
-      setSelectedChargeId(''); // Reset dropdown
+      setSelectedChargeId('');
     }
   };
 
@@ -113,12 +169,9 @@ export default function CheckOutPage() {
     return <p className="p-8">Memuat detail booking...</p>;
   }
 
-  // Kalkulasi biaya dinamis
+  const lateFeeDetails = calculateLateFeeDetails(booking);
   const chargesFee = addedCharges.reduce((total, charge) => total + charge.itemPrice * charge.quantity, 0);
-  const now = new Date();
-  const hoursDifference = Math.max(0, Math.ceil((now.getTime() - new Date(booking.expectedCheckOut).getTime()) / 3600000));
-  const currentLateFee = hoursDifference * 20000;
-  const currentTotal = booking.baseFee + currentLateFee + chargesFee;
+  const currentTotal = booking.baseFee + lateFeeDetails.total + chargesFee;
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
@@ -179,15 +232,29 @@ export default function CheckOutPage() {
           
           <div className="mt-4 p-4 bg-secondary rounded-lg space-y-2">
             <h3 className="font-semibold mb-2">Rincian Biaya</h3>
-            <div className="flex justify-between text-sm"><span>Tarif Dasar:</span> <span>Rp {booking.baseFee.toLocaleString('id-ID')}</span></div>
-            <div className="flex justify-between text-sm"><span>Denda Keterlambatan:</span> <span className="text-destructive">Rp {currentLateFee.toLocaleString('id-ID')}</span></div>
+            <div className="flex justify-between text-sm">
+              <span>Tarif Dasar:</span> 
+              <span>Rp {booking.baseFee.toLocaleString('id-ID')}</span>
+            </div>
+
+            {lateFeeDetails.breakdown.map((item, index) => (
+                <div key={index} className="flex justify-between text-sm text-destructive">
+                    <span>{item.label}:</span>
+                    <span>Rp {item.amount.toLocaleString('id-ID')}</span>
+                </div>
+            ))}
+
             {addedCharges.map((charge, index) => (
-              <div key={index} className="flex justify-between text-sm">
+              <div key={index} className="flex justify-between text-sm text-destructive">
                 <span>Sanksi ({charge.itemName}):</span>
                 <span>Rp {charge.itemPrice.toLocaleString('id-ID')}</span>
               </div>
             ))}
-            <div className="flex justify-between font-bold text-lg mt-2 border-t pt-2"><span>Total Tagihan:</span> <span>Rp {currentTotal.toLocaleString('id-ID')}</span></div>
+
+            <div className="flex justify-between font-bold text-lg mt-2 border-t pt-2">
+              <span>Total Tagihan:</span> 
+              <span>Rp {currentTotal.toLocaleString('id-ID')}</span>
+            </div>
           </div>
         </CardContent>
         <CardFooter>

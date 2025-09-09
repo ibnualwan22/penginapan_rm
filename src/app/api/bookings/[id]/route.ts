@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { differenceInHours } from 'date-fns';
 
+// Helper function untuk tarif
+const getRates = (roomType: 'STANDARD' | 'SPECIAL') => {
+  const isSpecial = roomType === 'SPECIAL';
+  return {
+    hourlyRate: 20_000,
+    halfDayRate: isSpecial ? 300_000 : 250_000,
+    fullDayRate: isSpecial ? 350_000 : 300_000,
+  };
+};
+
 // 1. FUNGSI UNTUK MENGAMBIL DETAIL BOOKING
 export async function GET(
   request: Request,
@@ -26,31 +36,53 @@ export async function GET(
 }
 
 
-// 2. FUNGSI UNTUK MEMPROSES CHECK-OUT
+// 2. FUNGSI UNTUK MEMPROSES CHECK-OUT (LOGIKA BARU)
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const body = await request.json();
-    // Ambil data sanksi dari body request
-    const { charges } = body; // charges akan berbentuk: [{ chargeableItemId: '...', quantity: 1 }]
+    const { charges } = body;
 
     const booking = await prisma.booking.findUnique({
       where: { id: params.id },
+      include: { room: true }
     });
 
-    if (!booking) {
+    if (!booking || !booking.room) {
       return new NextResponse('Booking tidak ditemukan', { status: 404 });
     }
 
     const now = new Date();
-
-    // --- Perhitungan Denda & Sanksi ---
     let lateFee = 0;
-    const hoursDifference = Math.max(0, Math.ceil((now.getTime() - new Date(booking.expectedCheckOut).getTime()) / 3600000));
-    if (hoursDifference > 0) {
-      lateFee = hoursDifference * 20000;
+
+    // --- LOGIKA PERHITUNGAN DENDA BARU ---
+    const totalLateHours = differenceInHours(now, booking.expectedCheckOut);
+
+    if (totalLateHours > 0) {
+      const rates = getRates(booking.room.type);
+      
+      // Hitung siklus hari penuh
+      const fullDaysLate = Math.floor(totalLateHours / 24);
+      if (fullDaysLate > 0) {
+        lateFee += fullDaysLate * rates.fullDayRate;
+      }
+
+      // Hitung sisa jam
+      const remainingHours = totalLateHours % 24;
+
+      if (remainingHours >= 1 && remainingHours <= 11) {
+        // Kategori 1: Denda per jam
+        lateFee += remainingHours * rates.hourlyRate;
+      } else if (remainingHours >= 12 && remainingHours <= 15) {
+        // Kategori 2: Paket 1/2 hari + sisa jam
+        lateFee += rates.halfDayRate + ((remainingHours - 12) * rates.hourlyRate);
+      } else if (remainingHours >= 16 && remainingHours <= 23) {
+        // Kategori 3: Harga terbaik
+        const scenarioA = rates.halfDayRate + ((remainingHours - 12) * rates.hourlyRate);
+        lateFee += Math.min(scenarioA, rates.fullDayRate);
+      }
     }
 
     let chargesFee = 0;
