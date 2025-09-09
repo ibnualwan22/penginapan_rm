@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LayoutDashboard, BedDouble, Users, FileText } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -20,6 +21,12 @@ export default function AdminLayout({
             <li className="mb-4">
               <Link href="/admin/rooms" className="block p-2 rounded hover:bg-gray-700">
                 Manajemen Kamar
+              </Link>
+            </li>
+            <li className="mb-4">
+              <Link href="/admin/active-bookings" className="flex items-center p-2 rounded hover:bg-gray-700">
+                <Users className="h-5 w-5 mr-3" />
+                Tamu Aktif
               </Link>
             </li>
             <li className="mb-4">

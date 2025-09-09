@@ -77,6 +77,7 @@ model Booking {
   guestPhone         String?
   studentName        String
   addressId          String       // ID Kabupaten dari API
+  addressLabel       String?      // <-- TAMBAHKAN BARIS INI
   checkIn            DateTime     @default(now())
   checkOut           DateTime?    // Bisa null saat belum checkout
   expectedCheckOut   DateTime     // Waktu seharusnya checkout

@@ -72,6 +72,7 @@ export default function CheckInPage() {
         guestPhone,
         studentName: selectedSantri.value,
         addressId: selectedAddress.value,
+        addressLabel: selectedAddress.label, // Simpan nama alamat
         bookingType,                                      // 'FULL_DAY' | 'HALF_DAY'
         duration: bookingType === 'FULL_DAY' ? duration : 0, // HALF_DAY => 0
       };
