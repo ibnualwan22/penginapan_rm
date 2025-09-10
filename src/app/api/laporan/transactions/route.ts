@@ -14,22 +14,42 @@ export async function GET(request: Request) {
     };
 
     if (from && to) {
+      const adjustedTo = new Date(to);
+      adjustedTo.setDate(adjustedTo.getDate() + 1);
       whereClause.checkOut = {
-        gte: new Date(from), // gte: greater than or equal
-        lte: new Date(to),   // lte: less than or equal
+        gte: new Date(from),
+        lte: adjustedTo,
       };
     }
 
     const transactions = await prisma.booking.findMany({
       where: whereClause,
+      // --- PERUBAHAN UTAMA DI SINI ---
       include: {
-        room: { select: { roomNumber: true } },
+        room: {
+          select: {
+            roomNumber: true,
+          },
+        },
+        checkedInBy: { // Ambil data user yang melakukan check-in
+          select: {
+            name: true,
+          },
+        },
+        checkedOutBy: { // Ambil data user yang melakukan check-out
+          select: {
+            name: true,
+          },
+        },
       },
-      orderBy: { checkOut: 'desc' },
+      orderBy: {
+        checkOut: 'desc',
+      },
     });
 
     return NextResponse.json(transactions);
   } catch (error) {
+    console.error("Report API Error:", error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
