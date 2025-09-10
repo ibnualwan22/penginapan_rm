@@ -4,11 +4,32 @@ import WhatsappButton from "@/components/WhatsappButton";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { LogOut } from 'lucide-react';
+import prisma from "@/lib/prisma"; // <-- 1. Impor prisma
 
+// 2. Ubah fungsi ini untuk mengambil data langsung dari database
 async function getActiveBookings() {
-  const res = await fetch('http://localhost:3000/api/bookings/active', { cache: 'no-store' });
-  if (!res.ok) throw new Error('Gagal mengambil data');
-  return res.json();
+  const activeBookings = await prisma.booking.findMany({
+    where: {
+      checkOut: null,
+    },
+    select: {
+      id: true,
+      guestName: true,
+      guestPhone: true,
+      studentName: true,
+      addressLabel: true,
+      checkIn: true,
+      expectedCheckOut: true,
+      bookingType: true,
+      room: {
+        select: { roomNumber: true },
+      },
+    },
+    orderBy: {
+      checkIn: 'asc',
+    },
+  });
+  return activeBookings;
 }
 
 export default async function ActiveBookingsPage() {
@@ -27,11 +48,12 @@ export default async function ActiveBookingsPage() {
               <TableHead>Alamat</TableHead>
               <TableHead>Check-in</TableHead>
               <TableHead>Selesai Pada</TableHead>
+              <TableHead>Paket</TableHead>
               <TableHead>Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bookings.map((booking: any) => (
+            {bookings.map((booking) => (
               <TableRow key={booking.id}>
                 <TableCell className="font-medium">{booking.room.roomNumber}</TableCell>
                 <TableCell>{booking.guestName}</TableCell>
@@ -39,8 +61,8 @@ export default async function ActiveBookingsPage() {
                 <TableCell>{booking.addressLabel || '-'}</TableCell>
                 <TableCell>{format(new Date(booking.checkIn), 'dd MMM, HH:mm')}</TableCell>
                 <TableCell>{format(new Date(booking.expectedCheckOut), 'dd MMM, HH:mm')}</TableCell>
+                <TableCell>{booking.bookingType === 'FULL_DAY' ? 'Harian' : 'Setengah Hari'}</TableCell>
                 <TableCell>
-                  {/* --- PERUBAHAN DI SINI --- */}
                   <div className="flex items-center space-x-2">
                     <WhatsappButton
                       guestName={booking.guestName}

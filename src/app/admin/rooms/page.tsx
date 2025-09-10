@@ -1,74 +1,70 @@
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import DeleteRoomButton from '@/components/DeleteRoomButton';
-import Link from 'next/link'; // <-- 1. Import Link di bagian atas
+import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { format } from 'date-fns';
 
-// Tipe data untuk satu kamar, agar kode kita lebih aman dan terstruktur
-type Room = {
-  id: string;
-  roomNumber: string;
-  floor: number;
-  type: 'STANDARD' | 'SPECIAL';
-  status: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE';
-};
-
-// Fungsi untuk mengambil data dari API kita
 async function getRooms() {
-  // Kita panggil API GET yang sudah kita buat sebelumnya
-  const res = await fetch('http://localhost:3000/api/rooms', {
-    // Opsi ini memastikan kita selalu mendapatkan data terbaru
-    cache: 'no-store', 
-  });
-
-  if (!res.ok) {
-    throw new Error('Gagal mengambil data kamar');
-  }
-
-  return res.json();
+    return prisma.room.findMany({ orderBy: { roomNumber: 'asc' } });
 }
 
-
-// Ini adalah komponen utama halaman kita
 export default async function RoomsPage() {
-  const rooms = await getRooms();
+    const session = await getServerSession(authOptions);
+    const userPermissions = session?.user?.permissions || [];
+    
+    // Cek izin yang relevan
+    const canCreate = userPermissions.includes('rooms:create');
+    const canUpdate = userPermissions.includes('rooms:update');
+    const canDelete = userPermissions.includes('rooms:delete');
 
-  return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Manajemen Kamar</h1>
-        {/* 2. Tambahkan tombol di sini */}
-        <Link href="/admin/rooms/new" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-          Tambah Kamar Baru
-        </Link>
-      </div>
+    const rooms = await getRooms();
 
-      <table className="min-w-full bg-white border">
-        <thead>
-          <tr className="w-full bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-            <th className="py-3 px-6 text-left">Nomor Kamar</th>
-            <th className="py-3 px-6 text-left">Lantai</th>
-            <th className="py-3 px-6 text-left">Tipe</th>
-            <th className="py-3 px-6 text-center">Status</th>
-            <th className="py-3 px-6 text-center">Aksi</th> {/* <-- Kolom baru */}
-          </tr>
-        </thead>
-          <tbody className="text-gray-600 text-sm font-light">
-            {rooms.map((room) => (
-              <tr key={room.id} className="border-b border-gray-200 hover:bg-gray-100">
-                <td className="py-3 px-6 text-left whitespace-nowrap">{room.roomNumber}</td>
-                <td className="py-3 px-6 text-left">{room.floor}</td>
-                <td className="py-3 px-6 text-left">{room.type}</td>
-                <td className="py-3 px-6 text-center">{room.status}</td>
-                <td className="py-3 px-6 text-center"> {/* <-- Tombol-tombol aksi */}
-                  <div className="flex item-center justify-center space-x-4">
-                    <Link href={`/admin/rooms/edit/${room.id}`} className="text-blue-600 hover:text-blue-900">
-                      Edit
-                    </Link>
-                    <DeleteRoomButton roomId={room.id} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-      </table>
-    </div>
-  );
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">Manajemen Kamar</h1>
+                {/* Tampilkan tombol hanya jika punya izin */}
+                {canCreate && (
+                    <Button asChild>
+                        <Link href="/admin/rooms/new">Tambah Kamar Baru</Link>
+                    </Button>
+                )}
+            </div>
+            
+            <div className="rounded-lg border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nomor Kamar</TableHead>
+                            <TableHead>Lantai</TableHead>
+                            <TableHead>Tipe</TableHead>
+                            <TableHead>Status</TableHead>
+                            {(canUpdate || canDelete) && <TableHead className="text-center">Aksi</TableHead>}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {rooms.map((room: any) => (
+                            <TableRow key={room.id}>
+                                <TableCell className="font-medium">{room.roomNumber}</TableCell>
+                                <TableCell>{room.floor}</TableCell>
+                                <TableCell>{room.type}</TableCell>
+                                <TableCell>{room.status}</TableCell>
+                                {(canUpdate || canDelete) && (
+                                    <TableCell className="text-center">
+                                        <div className="flex item-center justify-center space-x-4">
+                                            {canUpdate && <Link href={`/admin/rooms/edit/${room.id}`} className="text-blue-600 hover:text-blue-900">Edit</Link>}
+                                            {canDelete && <DeleteRoomButton roomId={room.id} />}
+                                        </div>
+                                    </TableCell>
+                                )}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    );
 }

@@ -1,26 +1,10 @@
-// Tipe data untuk statistik kita
-type Stats = {
-  totalRooms: number;
-  AVAILABLERooms: number;
-  occupiedRooms: number;
-  maintenanceRooms: number;
-};
+import prisma from "@/lib/prisma"; // 1. Ambil prisma langsung
 
-async function getStats(): Promise<Stats> {
-  const res = await fetch('http://localhost:3000/api/dashboard/stats', {
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    throw new Error('Gagal mengambil statistik');
-  }
-  return res.json();
-}
-
-// Komponen Kartu Statistik individual
+// Komponen Kartu Statistik individual (tidak ada perubahan)
 function StatCard({ title, value }: { title: string; value: number }) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-gray-500 text-sm font-medium">{title}</h3>
+    <div className="bg-white p-6 rounded-lg shadow-md dark:bg-gray-800">
+      <h3 className="text-gray-500 text-sm font-medium dark:text-gray-400">{title}</h3>
       <p className="text-3xl font-bold mt-2">{value}</p>
     </div>
   );
@@ -28,12 +12,26 @@ function StatCard({ title, value }: { title: string; value: number }) {
 
 // Komponen utama yang akan kita ekspor
 export default async function DashboardStats() {
-  const stats = await getStats();
+  // 2. Logika dari API dipindahkan langsung ke sini
+  const [totalRooms, availableRooms, occupiedRooms, maintenanceRooms] = 
+    await Promise.all([
+      prisma.room.count(),
+      prisma.room.count({ where: { status: 'AVAILABLE' } }),
+      prisma.room.count({ where: { status: 'OCCUPIED' } }),
+      prisma.room.count({ where: { status: 'MAINTENANCE' } }),
+    ]);
+
+  const stats = {
+    totalRooms,
+    availableRooms,
+    occupiedRooms,
+    maintenanceRooms,
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatCard title="Total Kamar" value={stats.totalRooms} />
-      <StatCard title="AVAILABLE" value={stats.AVAILABLERooms} />
+      <StatCard title="Tersedia" value={stats.availableRooms} />
       <StatCard title="Terisi" value={stats.occupiedRooms} />
       <StatCard title="Dalam Perbaikan" value={stats.maintenanceRooms} />
     </div>

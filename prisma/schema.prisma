@@ -10,24 +10,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// MODEL UNTUK PENGGUNA/ADMIN/RESEPSIONIS
+// ======================================
+// MODEL BARU UNTUK OTENTIKASI DAN AKSES
+// ======================================
+
 model User {
   id        String    @id @default(cuid())
   name      String
-  email     String    @unique
-  password  String // Nanti akan di-hash
-  role      UserRole  @default(RECEPTIONIST)
+  username  String    @unique
+  password  String // Akan selalu di-hash
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // Relasi: User bisa melakukan banyak check-in dan check-out
+  // Relasi ke Role
+  roleId    String
+  role      Role      @relation(fields: [roleId], references: [id])
+
+  // Relasi ke Booking
   checkedInBookings  Booking[] @relation("CheckedInBy")
   checkedOutBookings Booking[] @relation("CheckedOutBy")
 }
 
-enum UserRole {
-  ADMIN
-  RECEPTIONIST
+model Role {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String    @id @default(cuid())
+  name        String    @unique // e.g., "rooms:read", "rooms:create"
+  description String?
+
+  roles       RolePermission[]
+}
+
+// Tabel penghubung untuk relasi Many-to-Many
+model RolePermission {
+  roleId       String
+  permissionId String
+  
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
 }
 
 
