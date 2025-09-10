@@ -36,10 +36,10 @@ export default function RoomCard({ room }: { room: Room }) {
   };
 
   return (
-    <div onClick={handleClick} className={`p-4 rounded-lg shadow-md flex flex-col justify-between min-h-[100px] ${cardColor[room.status]}`}>
+    <div onClick={handleClick} className={`p-4 rounded-lg shadow-md flex flex-col justify-between min-h-[100px] ${cardColor[room.status] }`}>
       <div>
         <h3 className="font-bold text-lg">{room.roomNumber}</h3>
-        <p className="text-sm capitalize">{room.status.toLowerCase()}</p>
+        <p className="text-sm capitalize">{room.status.toLowerCase()==="available"?"Tersedia":room.status.toLowerCase()==="occupied"?"Terisi":"Perbaikan"}</p>
       </div>
       
       {/* --- Tambahkan logika tampilan di sini --- */}

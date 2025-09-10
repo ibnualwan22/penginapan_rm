@@ -12,7 +12,7 @@ export default function EditUserForm({ user, roles }: { user: any, roles: Role[]
     const router = useRouter();
     const [name, setName] = useState(user.name);
     const [username, setUsername] = useState(user.username);
-    const [password, setPassword] = useState(''); // Kosongkan password, hanya diisi jika ingin diubah
+    const [password, setPassword] = useState(''); // State untuk password baru
     const [roleId, setRoleId] = useState(user.roleId);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -25,6 +25,7 @@ export default function EditUserForm({ user, roles }: { user: any, roles: Role[]
         const res = await fetch(`/api/users/${user.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
+            // Kirim password baru (bisa kosong)
             body: JSON.stringify({ name, username, password, roleId })
         });
 
@@ -49,9 +50,16 @@ export default function EditUserForm({ user, roles }: { user: any, roles: Role[]
                 <Label htmlFor="username">Username</Label>
                 <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
             </div>
+            {/* --- INPUT BARU UNTUK PASSWORD --- */}
             <div>
                 <Label htmlFor="password">Password Baru (Opsional)</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kosongkan jika tidak diubah"/>
+                <Input 
+                    id="password" 
+                    type="password" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    placeholder="Kosongkan jika tidak diubah"
+                />
             </div>
             <div>
                 <Label htmlFor="role">Peran (Role)</Label>

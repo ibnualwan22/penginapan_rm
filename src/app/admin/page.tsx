@@ -1,24 +1,21 @@
 import DashboardStats from "@/components/DashboardStats";
-import DashboardCharts from "@/components/DashboardCharts"; // <-- Import
-import RoomCard from "@/components/RoomCard"; // <-- Import komponen baru
+import DashboardCharts from "@/components/DashboardCharts";
+import RoomCard from "@/components/RoomCard";
 import prisma from "@/lib/prisma";
-
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 async function getRooms() {
   return prisma.room.findMany({
     orderBy: { roomNumber: 'asc' },
-    // Sertakan data booking yang relevan
     include: {
       bookings: {
-        where: {
-          // Hanya ambil booking yang belum checkout
-          checkOut: null, 
-        },
+        where: { checkOut: null },
         select: {
           id: true,
-          guestName: true,  // Ambil nama wali santri
-          studentName: true, // Ambil nama santri
-          expectedCheckOut: true, // <-- Tambahkan ini
+          guestName: true,
+          studentName: true,
+          expectedCheckOut: true,
         },
       },
     },
@@ -26,20 +23,35 @@ async function getRooms() {
 }
 
 export default async function AdminDashboardPage() {
+  const session = await getServerSession(authOptions);
+  const userPermissions = session?.user?.permissions || [];
+  
+  // Variabel ini sekarang hanya mengontrol visibilitas grafik
+  const canViewCharts = userPermissions.includes('dashboard:read:statistics');
+
   const rooms = await getRooms();
 
   return (
-    // Hapus className="p-8" dari div ini
     <div>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+      
+      {/* 1. Komponen Statistik Angka - selalu terlihat */}
       <DashboardStats />
-      <DashboardCharts /> {/* <-- Panggil komponen di sini */}
+
+      {/* 2. Komponen Grafik - hanya ditampilkan jika punya izin */}
+      {canViewCharts && (
+        <DashboardCharts />
+      )}
+
+      {/* 3. Status Kamar - kembali menjadi judul biasa */}
       <h2 className="text-xl font-bold mt-8 mb-4">Status Kamar</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {rooms.map((room) => (
           <RoomCard key={room.id} room={room} />
         ))}
       </div>
+      
     </div>
   );
 }
+

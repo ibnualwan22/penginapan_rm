@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-
+    console.log("Received 'from' date:", from);
+    console.log("Received 'to' date:", to);
     const whereClause: any = {
       checkOut: {
         not: null,
@@ -14,11 +16,23 @@ export async function GET(request: Request) {
     };
 
     if (from && to) {
-      const adjustedTo = new Date(to);
-      adjustedTo.setDate(adjustedTo.getDate() + 1);
+      // Buat objek Date dari string tanggal UTC yang diterima
+      const startDate = new Date(from);
+      const endDate = new Date(to);
+
+      
+
+      // Secara eksplisit atur waktu ke awal dan akhir hari
+      // berdasarkan zona waktu server (diasumsikan Asia/Jakarta)
+      // startDate.setHours(0, 0, 0, 0);
+      // endDate.setHours(23, 59, 59, 999);
+      console.log("Start Date:", startDate);
+      console.log("End Date:", endDate);
+
       whereClause.checkOut = {
-        gte: new Date(from),
-        lte: adjustedTo,
+        gte: startDate, // Lebih besar atau sama dengan pukul 00:00 WIB
+        lte: endDate,   // Lebih kecil atau sama dengan pukul 23:59 WIB
+
       };
     }
 

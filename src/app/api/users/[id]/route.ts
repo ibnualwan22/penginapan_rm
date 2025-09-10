@@ -17,8 +17,9 @@ export async function PATCH(
       roleId,
     };
 
-    // Hanya update password jika diisi
-    if (password) {
+    // --- PERUBAHAN UTAMA DI SINI ---
+    // Hanya update password jika kolomnya diisi (tidak kosong)
+    if (password && password.trim() !== '') {
       dataToUpdate.password = bcrypt.hashSync(password, 10);
     }
 
@@ -36,13 +37,12 @@ export async function PATCH(
   }
 }
 
-// Menghapus pengguna
+// Menghapus pengguna (fungsi ini tidak berubah)
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Tambahkan logika untuk mencegah user menghapus dirinya sendiri jika perlu
     await prisma.user.delete({ where: { id: params.id } });
     return new NextResponse(null, { status: 204 });
   } catch (error) {

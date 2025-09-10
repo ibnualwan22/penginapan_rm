@@ -17,7 +17,7 @@ export default async function AdminLayout({
     <div className="flex min-h-screen">
       <aside className="w-64 bg-gray-800 text-white flex flex-col">
         <div className="p-4">
-          <h1 className="text-2xl font-bold mb-8">Penginapan RM</h1>
+          <h1 className="text-2xl font-bold mb-8">Raudlotul Muta'alimin</h1>
           <nav>
             <ul>
               {/* Dashboard selalu terlihat */}

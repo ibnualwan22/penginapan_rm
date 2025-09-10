@@ -9,6 +9,7 @@ async function main() {
   // 1. Buat semua izin (permissions) yang ada di sistem
   const permissions = [
     // Manajemen Kamar
+    { name: 'dashboard:read:statistics', description: 'Melihat statistik di dashboard' },
     { name: 'rooms:read', description: 'Melihat daftar kamar' },
     { name: 'rooms:create', description: 'Menambah kamar baru' },
     { name: 'rooms:update', description: 'Mengedit kamar' },
