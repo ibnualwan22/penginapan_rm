@@ -63,28 +63,34 @@ model RolePermission {
 // MODEL UNTUK DATA MASTER KAMAR
 model Room {
   id          String   @id @default(cuid())
-  roomNumber  String   @unique // Contoh: "101", "Hasan"
-  floor       Int      // Contoh: 1, 2
-  type        RoomType @default(STANDARD)
+  roomNumber  String   @unique
+  floor       Int
+  
+  // Ganti baris 'type' yang lama dengan relasi ini
+  roomTypeId  String
+  roomType    RoomType @relation(fields: [roomTypeId], references: [id])
+  
   status      RoomStatus @default(AVAILABLE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relasi: Satu kamar bisa punya banyak foto
   images      RoomImage[]
-  // Relasi: Satu kamar bisa punya banyak histori booking
   bookings    Booking[]
-}
-
-enum RoomType {
-  STANDARD
-  SPECIAL // Untuk kamar seperti 101, Hasan, Husen
 }
 
 enum RoomStatus {
   AVAILABLE // AVAILABLE
   OCCUPIED  // Terisi
   MAINTENANCE // Dalam Perbaikan
+}
+
+model RoomType {
+  id            String @id @default(cuid())
+  name          String @unique
+  priceHalfDay  Float
+  priceFullDay  Float
+  
+  rooms         Room[]
 }
 
 // Model untuk menyimpan URL foto kamar

@@ -3,19 +3,24 @@ import prisma from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
+    // Sekarang kita menerima roomTypeId, bukan 'type'
     const body = await request.json();
-    const { roomNumber, floor, type } = body;
+    const { roomNumber, floor, roomTypeId } = body;
 
-    // Validasi sederhana
-    if (!roomNumber || !floor || !type) {
+    if (!roomNumber || !floor || !roomTypeId) {
       return new NextResponse('Data tidak lengkap', { status: 400 });
     }
 
     const newRoom = await prisma.room.create({
       data: {
         roomNumber,
-        floor: parseInt(floor), // Pastikan floor adalah angka
-        type,
+        floor: parseInt(floor),
+        // Gunakan 'connect' untuk membuat relasi
+        roomType: {
+          connect: {
+            id: roomTypeId,
+          },
+        },
       },
     });
 

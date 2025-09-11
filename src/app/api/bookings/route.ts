@@ -4,14 +4,8 @@ import { addHours } from 'date-fns';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-/**
- * Menangani permintaan POST untuk membuat booking baru (proses check-in).
- */
 export async function POST(request: Request) {
-  // 1. Ambil sesi pengguna yang sedang login
   const session = await getServerSession(authOptions);
-
-  // Jika tidak ada sesi (pengguna tidak login), tolak permintaan
   if (!session || !session.user) {
     return new NextResponse('Akses ditolak', { status: 401 });
   }
@@ -33,16 +27,19 @@ export async function POST(request: Request) {
         return new NextResponse('Data yang dibutuhkan tidak lengkap', { status: 400 });
     }
 
-    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    // Ambil data kamar beserta tipe dan harganya
+    const room = await prisma.room.findUnique({ 
+      where: { id: roomId },
+      include: { roomType: true } // <-- Sertakan data RoomType
+    });
     if (!room) {
       return new NextResponse('Kamar tidak ditemukan', { status: 404 });
     }
 
-    const isSpecial = room.type === 'SPECIAL';
-    const baseFee =
-      bookingType === 'FULL_DAY'
-        ? (isSpecial ? 350_000 : 300_000)
-        : (isSpecial ? 300_000 : 250_000);
+    // --- Kalkulasi Harga Dinamis ---
+    const baseFee = bookingType === 'FULL_DAY'
+        ? room.roomType.priceFullDay
+        : room.roomType.priceHalfDay;
 
     const checkInTime = new Date();
     const days = duration > 0 ? duration : 1;
@@ -61,7 +58,6 @@ export async function POST(request: Request) {
       checkIn: checkInTime,
       expectedCheckOut,
       room: { connect: { id: roomId } },
-      // 2. Gunakan ID dari sesi pengguna yang aktif
       checkedInBy: { connect: { id: session.user.id } }, 
     };
 
@@ -84,4 +80,3 @@ export async function POST(request: Request) {
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
-

@@ -4,17 +4,9 @@ import { differenceInHours } from 'date-fns';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-// Helper function untuk tarif
-const getRates = (roomType: 'STANDARD' | 'SPECIAL') => {
-  const isSpecial = roomType === 'SPECIAL';
-  return {
-    hourlyRate: 20_000,
-    halfDayRate: isSpecial ? 300_000 : 250_000,
-    fullDayRate: isSpecial ? 350_000 : 300_000,
-  };
-};
-
-// 1. FUNGSI UNTUK MENGAMBIL DETAIL BOOKING
+/**
+ * Mengambil detail satu booking berdasarkan ID.
+ */
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -23,7 +15,13 @@ export async function GET(
     const booking = await prisma.booking.findUnique({
       where: { id: params.id },
       include: {
-        room: true, // Sertakan detail kamar
+        room: {
+            include: {
+                roomType: true,
+            }
+        },
+        checkedInBy: { select: { name: true }},
+        checkedOutBy: { select: { name: true }},
       },
     });
 
@@ -33,17 +31,18 @@ export async function GET(
 
     return NextResponse.json(booking);
   } catch (error) {
+    console.error("Get Booking Detail Error:", error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
 
-
-// 2. FUNGSI UNTUK MEMPROSES CHECK-OUT (LOGIKA BARU)
+/**
+ * Memproses check-out untuk satu booking.
+ */
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // 1. Ambil sesi pengguna yang sedang login
   const session = await getServerSession(authOptions);
   if (!session || !session.user) {
     return new NextResponse('Akses ditolak', { status: 401 });
@@ -55,7 +54,13 @@ export async function PATCH(
 
     const booking = await prisma.booking.findUnique({
       where: { id: params.id },
-      include: { room: true }
+      include: { 
+        room: {
+          include: {
+            roomType: true // Sertakan data RoomType untuk harga dinamis
+          }
+        }
+      }
     });
 
     if (!booking || !booking.room) {
@@ -65,21 +70,22 @@ export async function PATCH(
     const now = new Date();
     let lateFee = 0;
 
-    // --- LOGIKA PERHITUNGAN DENDA BARU ---
-    const totalLateHours = differenceInHours(now, booking.expectedCheckOut);
-
+    // --- LOGIKA PERHITUNGAN DENDA BARU DENGAN HARGA DINAMIS ---
+    const totalLateHours = Math.max(0, differenceInHours(now, booking.expectedCheckOut));
+    
     if (totalLateHours > 0) {
-      const rates = getRates(booking.room.type);
+      const rates = {
+        hourlyRate: 20_000,
+        halfDayRate: booking.room.roomType.priceHalfDay,
+        fullDayRate: booking.room.roomType.priceFullDay,
+      };
       
-      // Hitung siklus hari penuh
       const fullDaysLate = Math.floor(totalLateHours / 24);
       if (fullDaysLate > 0) {
         lateFee += fullDaysLate * rates.fullDayRate;
       }
-
-      // Hitung sisa jam
+      
       const remainingHours = totalLateHours % 24;
-
       if (remainingHours >= 1 && remainingHours <= 11) {
         // Kategori 1: Denda per jam
         lateFee += remainingHours * rates.hourlyRate;
@@ -96,16 +102,15 @@ export async function PATCH(
     let chargesFee = 0;
     if (charges && charges.length > 0) {
       for (const charge of charges) {
-          const item = await prisma.chargeableItem.findUnique({ where: { id: charge.chargeableItemId } });
-          if(item) {
-              chargesFee += item.chargeAmount * charge.quantity;
-          }
+        const item = await prisma.chargeableItem.findUnique({ where: { id: charge.chargeableItemId } });
+        if (item) {
+          chargesFee += item.chargeAmount * charge.quantity;
+        }
       }
     }
-
+    
     const totalFee = booking.baseFee + lateFee + chargesFee;
 
-    // --- Gunakan Transaksi untuk Keamanan Data ---
     await prisma.$transaction(async (tx) => {
       // 1. Update booking
       await tx.booking.update({
@@ -114,18 +119,18 @@ export async function PATCH(
           checkOut: now,
           lateFee,
           totalFee,
-          checkedOutById: session.user.id,
+          checkedOutById: session.user.id, // Simpan ID pengguna yang melakukan check-out
         },
       });
 
-      // 2. Buat catatan untuk setiap sanksi
+      // 2. Buat catatan sanksi
       if (charges && charges.length > 0) {
         await tx.bookingCharge.createMany({
-            data: charges.map((charge: any) => ({
-                bookingId: params.id,
-                chargeableItemId: charge.chargeableItemId,
-                quantity: charge.quantity,
-            }))
+          data: charges.map((charge: any) => ({
+            bookingId: params.id,
+            chargeableItemId: charge.chargeableItemId,
+            quantity: charge.quantity,
+          }))
         });
       }
 
@@ -143,3 +148,4 @@ export async function PATCH(
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
+

@@ -28,6 +28,8 @@ async function main() {
     { name: 'users:update', description: 'Mengedit data pengguna' },
     { name: 'users:delete', description: 'Menghapus pengguna' },
     { name: 'roles:update', description: 'Mengedit peran & izinnya' },
+    { name: 'prices:read', description: 'Melihat manajemen harga' },
+    { name: 'prices:update', description: 'Mengubah harga tipe kamar' },
   ];
 
   for (const perm of permissions) {
@@ -73,6 +75,28 @@ async function main() {
     },
   });
   console.log('Admin user seeded.');
+
+  console.log('Seeding room types...');
+  await prisma.roomType.upsert({
+    where: { name: 'STANDARD' },
+    update: {},
+    create: {
+      name: 'STANDARD',
+      priceHalfDay: 250000,
+      priceFullDay: 300000,
+    },
+  });
+
+  await prisma.roomType.upsert({
+    where: { name: 'SPECIAL' },
+    update: {},
+    create: {
+      name: 'SPECIAL',
+      priceHalfDay: 300000,
+      priceFullDay: 350000,
+    },
+  });
+  console.log('Room types seeded.');
 
   console.log('Seeding finished.');
 }

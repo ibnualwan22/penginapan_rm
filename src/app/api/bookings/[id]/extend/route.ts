@@ -13,49 +13,45 @@ export async function PATCH(
     const body = await request.json();
     const { extensionType, duration } = body as { extensionType: ExtensionType, duration: number };
 
-    if (!extensionType) {
-      return new NextResponse('Tipe perpanjangan tidak valid', { status: 400 });
-    }
-
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { room: true },
+      include: { 
+        room: {
+          include: {
+            roomType: true // <-- Sertakan data RoomType
+          }
+        } 
+      },
     });
 
     if (!booking || !booking.room) {
       return new NextResponse('Booking tidak ditemukan', { status: 404 });
     }
 
-    // --- Kalkulasi Biaya & Waktu yang Diperbarui ---
-    const isSpecial = booking.room.type === 'SPECIAL';
+    // --- Kalkulasi Harga Dinamis ---
     let extensionFee = 0;
     let hoursToAdd = 0;
     let daysToAdd = 0;
 
     if (extensionType === 'FULL_DAY') {
       daysToAdd = duration > 0 ? duration : 1;
-      const dailyRate = isSpecial ? 350_000 : 300_000;
-      extensionFee = dailyRate * daysToAdd;
+      extensionFee = booking.room.roomType.priceFullDay * daysToAdd;
       hoursToAdd = daysToAdd * 24;
     } else { // HALF_DAY
-      extensionFee = isSpecial ? 300_000 : 250_000;
+      extensionFee = booking.room.roomType.priceHalfDay;
       hoursToAdd = 12;
     }
 
     const currentExpected = new Date(booking.expectedCheckOut);
     const newExpectedCheckOut = addHours(currentExpected, hoursToAdd);
 
-    // --- Update Database ---
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
         expectedCheckOut: newExpectedCheckOut,
         baseFee: { increment: extensionFee },
         totalFee: { increment: extensionFee },
-        // Tambahkan juga durasi harinya ke data yang sudah ada
-        durationInDays: {
-          increment: daysToAdd,
-        },
+        durationInDays: { increment: daysToAdd },
       },
       include: { room: true },
     });
@@ -66,4 +62,3 @@ export async function PATCH(
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
-

@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { LayoutDashboard, BedDouble, Users, FileText, ShieldCheck, UserCog } from 'lucide-react';
+import { LayoutDashboard, BedDouble, Users, FileText, ShieldCheck, UserCog, DollarSign } from 'lucide-react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import LogoutButton from '@/components/auth/LogoutButton';
+
 
 export default async function AdminLayout({
   children,
@@ -37,6 +38,14 @@ export default async function AdminLayout({
                   </Link>
                 </li>
               )}
+              {userPermissions.includes('prices:read') && (
+            <li className="mb-4">
+                <Link href="/admin/prices" className="flex items-center p-2 rounded hover:bg-gray-700">
+                    <DollarSign className="h-5 w-5 mr-3" />
+                    Manajemen Harga
+                </Link>
+            </li>
+        )}
 
               {/* Tampilkan link jika punya izin 'bookings:read' */}
               {userPermissions.includes('bookings:read') && (
