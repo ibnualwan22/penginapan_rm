@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AsyncSelect from 'react-select/async';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format } from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
 
 type SelectOption = {
   value: string;
@@ -20,19 +22,34 @@ export default function CheckInPage() {
   const params = useParams();
   const roomId = params.roomId as string;
 
+  // State untuk data form
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [selectedSantri, setSelectedSantri] = useState<SelectOption | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<SelectOption | null>(null);
-
-  // 👉 ketatkan tipe & jadikan controlled
   const [bookingType, setBookingType] = useState<'FULL_DAY' | 'HALF_DAY'>('FULL_DAY');
   const [duration, setDuration] = useState<number>(1);
   const [paymentMethod, setPaymentMethod] = useState<string | undefined>();
   const [paymentStatus, setPaymentStatus] = useState<string | undefined>();
-
+  
+  // State tambahan (termasuk perbaikan untuk roomNumber)
+  const [roomNumber, setRoomNumber] = useState(''); // <-- Pastikan ini ada
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Ambil data nomor kamar saat halaman dimuat
+  useEffect(() => {
+    if (roomId) {
+      const fetchRoomData = async () => {
+        const res = await fetch(`/api/rooms/${roomId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRoomNumber(data.roomNumber); // <-- Isi state roomNumber
+        }
+      };
+      fetchRoomData();
+    }
+  }, [roomId]);
 
   const loadSantriOptions = async (inputValue: string) => {
     if (inputValue.length < 3) return [];
@@ -40,7 +57,7 @@ export default function CheckInPage() {
     const { data } = await res.json();
     return data.map((santri: any) => ({
       value: santri.name,
-      label: `${santri.name} (${santri.regency})`,
+      label: `${santri.name} (${santri.regency || 'Alamat tidak diketahui'})`,
       details: santri,
     }));
   };
@@ -65,20 +82,14 @@ export default function CheckInPage() {
     setError(null);
 
     try {
-      // Debug lokal (opsional):
-      // console.log({ bookingType, duration });
-
       const payload = {
-        roomId,
-        guestName,
-        guestPhone,
+        roomId, guestName, guestPhone,
         studentName: selectedSantri.value,
         addressId: selectedAddress.value,
-        addressLabel: selectedAddress.label, // Simpan nama alamat
-        bookingType,                                      // 'FULL_DAY' | 'HALF_DAY'
-        duration: bookingType === 'FULL_DAY' ? duration : 0, // HALF_DAY => 0
-        paymentMethod,
-        paymentStatus,
+        addressLabel: selectedAddress.label,
+        bookingType,
+        duration: bookingType === 'FULL_DAY' ? duration : 0,
+        paymentMethod, paymentStatus,
       };
 
       const res = await fetch('/api/bookings', {
@@ -87,9 +98,46 @@ export default function CheckInPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error('Gagal melakukan check-in');
+      if (!res.ok) {
+        const errorData = await res.text();
+        throw new Error(errorData || 'Gagal melakukan check-in');
+      }
+
+      const newBooking = await res.json();
+      if (guestPhone) {
+        const formattedPhone = guestPhone.startsWith('62') ? guestPhone : `62${guestPhone.substring(1)}`;
+        const paymentStatusText = paymentStatus === 'PAID' ? 'Lunas' : 'Belum Lunas';
+        const paymentMethodText = paymentMethod ? `\n💰 Metode: ${paymentMethod}` : '';
+
+        const message = [
+            '*Selamat Datang di Penginapan Roudlatul Muta’alimin*',
+            `_Yth. Bapak/Ibu ${guestName}_,`,
+            '',
+            'Terima kasih telah melakukan proses check-in. Dengan senang hati kami sampaikan detail informasi menginap Anda:',
+            `*Santri* : ${selectedSantri.value}`,
+            `*Kamar*: ${roomNumber}`,
+            `*Check-in* : ${format(new Date(newBooking.checkIn), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+            `*Jadwal Check-out* : ${format(new Date(newBooking.expectedCheckOut), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+            `*Paket*: ${bookingType === 'FULL_DAY' ? `Harian (${duration} hari)` : 'Setengah Hari'}`,
+            `*Status Pembayaran* : ${paymentStatusText}${paymentMethodText}`,
+            `*Total Biaya* : Rp ${newBooking.totalFee.toLocaleString('id-ID')}`, // <-- BARIS BARU
+            '',
+            'Apabila Bapak/Ibu memerlukan bantuan, jangan sungkan untuk menghubungi kontak layanan kami:',
+            '',
+            '*Cafe Arwana* : 6288215278401',
+            '*Resepsionis Hotel RM* : 6285842817105',
+            '*Mobil Pelayanan Tamu* : 62882007534377 / 6282323745184',
+            '',
+            "Kenyamanan Bapak/Ibu adalah prioritas kami, semoga masa tinggal ini memberi ketenangan dan rasa aman."
+        ].join('\n');
+
+        const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+
       router.push('/admin');
       router.refresh();
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -101,88 +149,81 @@ export default function CheckInPage() {
     <div className="p-4 sm:p-8 max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Formulir Check-in</CardTitle>
+          <CardTitle>Formulir Check-in (Kamar {roomNumber})</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="guestName">Nama Wali Santri</Label>
-              <Input type="text" id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
+                <Label htmlFor="guestName">Nama Wali Santri</Label>
+                <Input type="text" id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="guestPhone">Nomor HP Wali</Label>
-              <Input type="tel" id="guestPhone" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="Contoh: 08123456789" />
+                <Label htmlFor="guestPhone">Nomor HP Wali</Label>
+                <Input type="tel" id="guestPhone" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="Contoh: 08123456789" />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="studentName">Cari Nama Santri</Label>
-              <AsyncSelect instanceId="student-select" cacheOptions defaultOptions loadOptions={loadSantriOptions} onChange={setSelectedSantri} placeholder="Ketik min. 3 huruf..." isClearable />
-              {selectedSantri && (
-                <div className="mt-2 p-2 bg-muted rounded text-sm text-muted-foreground"><p><b>Asrama:</b> {selectedSantri.details.activeDormitory}</p><p><b>Jenis Kelamin:</b> {selectedSantri.details.gender}</p></div>
-              )}
+                <Label htmlFor="studentName">Cari Nama Santri</Label>
+                <AsyncSelect instanceId="student-select" cacheOptions defaultOptions loadOptions={loadSantriOptions} onChange={setSelectedSantri} placeholder="Ketik min. 3 huruf..." isClearable />
+                {selectedSantri && (
+                    <div className="mt-2 p-2 bg-muted rounded text-sm text-muted-foreground"><p><b>Asrama:</b> {selectedSantri.details.activeDormitory}</p><p><b>Jenis Kelamin:</b> {selectedSantri.details.gender}</p></div>
+                )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="address">Cari Alamat (Kabupaten)</Label>
-              <AsyncSelect instanceId="address-select" cacheOptions defaultOptions loadOptions={loadAddressOptions} onChange={setSelectedAddress} placeholder="Ketik min. 3 huruf..." isClearable />
+                <Label htmlFor="address">Cari Alamat (Kabupaten)</Label>
+                <AsyncSelect instanceId="address-select" cacheOptions defaultOptions loadOptions={loadAddressOptions} onChange={setSelectedAddress} placeholder="Ketik min. 3 huruf..." isClearable />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="bookingType">Paket Menginap</Label>
-              {/* 👉 jadikan controlled: pakai value, bukan defaultValue */}
-              <Select value={bookingType} onValueChange={(v) => setBookingType(v as 'FULL_DAY' | 'HALF_DAY')}>
-                <SelectTrigger><SelectValue placeholder="Pilih paket" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FULL_DAY">Satu Hari</SelectItem>
-                  <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
-                </SelectContent>
-              </Select>
+                <Label htmlFor="bookingType">Paket Menginap</Label>
+                <Select value={bookingType} onValueChange={(v) => setBookingType(v as 'FULL_DAY' | 'HALF_DAY')}>
+                    <SelectTrigger><SelectValue placeholder="Pilih paket" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="FULL_DAY">Satu Hari</SelectItem>
+                        <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
             {bookingType === 'FULL_DAY' && (
-              <div className="space-y-2">
-                <Label htmlFor="duration">Lama Durasi (hari)</Label>
-                <Input
-                  type="number"
-                  id="duration"
-                  value={Number.isFinite(duration) ? duration : 1}
-                  onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value || '1', 10)))}
-                  min="1"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                    <Label htmlFor="duration">Lama Durasi (hari)</Label>
+                    <Input type="number" id="duration" value={Number.isFinite(duration) ? duration : 1} onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value || '1', 10)))} min="1" required />
+                </div>
             )}
+            
             <div className="border-t pt-4 space-y-4">
-        <h3 className="text-sm font-medium text-gray-700">Catat Pembayaran Awal (Opsional)</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label>Metode Pembayaran</Label>
-            <Select onValueChange={setPaymentMethod}>
-              <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">Cash</SelectItem>
-                <SelectItem value="TRANSFER">Transfer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Status</Label>
-            <Select onValueChange={setPaymentStatus}>
-              <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PAID">Lunas</SelectItem>
-                <SelectItem value="UNPAID">Belum Lunas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
+              <h3 className="text-sm font-medium text-gray-700">Catat Pembayaran Awal (Opsional)</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Metode Pembayaran</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="TRANSFER">Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                    <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PAID">Lunas</SelectItem>
+                      <SelectItem value="UNPAID">Belum Lunas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
 
             {error && <p className="text-destructive text-sm">{error}</p>}
 
             <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? 'Memproses...' : 'Submit Check-in'}
+              {isLoading ? 'Memproses...' : 'Submit Check-in & Kirim Notifikasi'}
             </Button>
           </form>
         </CardContent>
@@ -190,3 +231,4 @@ export default function CheckInPage() {
     </div>
   );
 }
+

@@ -1,155 +1,120 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation'; // <-- 1. Impor useParams
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Tipe data untuk kamar
-type Room = {
-  roomNumber: string;
-  floor: string;
-  type: 'STANDARD' | 'SPECIAL';
-  status: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE';
-};
+// Ambil tipe RoomType dari Prisma
+type RoomType = {
+    id: string;
+    name: string;
+}
 
-export default function EditRoomPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const { id } = params; // Ambil ID dari URL
-  const [formData, setFormData] = useState<Room>({
-    roomNumber: '',
-    floor: '',
-    type: 'STANDARD',
-    status: 'AVAILABLE',
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function EditRoomPage() { // <-- 2. Hapus props 'params'
+    const router = useRouter();
+    const params = useParams(); // <-- 3. Gunakan hook useParams
+    const id = params.id as string;
 
-  // useEffect untuk mengambil data kamar saat halaman pertama kali dimuat
-  useEffect(() => {
-    if (id) {
-      const fetchRoomData = async () => {
-        try {
-          const res = await fetch(`/api/rooms/${id}`);
-          if (!res.ok) throw new Error('Gagal mengambil data kamar');
-          const data = await res.json();
-          // Set form data dengan data yang ada
-          setFormData({
-            roomNumber: data.roomNumber,
-            floor: data.floor.toString(),
-            type: data.type,
-            status: data.status,
-          });
-        } catch (err: any) {
-          setError(err.message);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchRoomData();
-    }
-  }, [id]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.id]: e.target.value,
+    const [formData, setFormData] = useState({
+        roomNumber: '',
+        floor: '',
+        roomTypeId: '',
+        status: 'AVAILABLE',
     });
-  };
+    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-  // Fungsi untuk mengirim data yang sudah diubah
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+    useEffect(() => {
+        if (id) {
+            const fetchData = async () => {
+                // Ambil data kamar dan data tipe kamar secara bersamaan
+                const [roomRes, typesRes] = await Promise.all([
+                    fetch(`/api/rooms/${id}`),
+                    fetch('/api/room-types') // API untuk mendapat semua tipe kamar
+                ]);
 
-    try {
-      const res = await fetch(`/api/rooms/${id}`, {
-        method: 'PATCH', // Gunakan method PATCH untuk update
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+                if (roomRes.ok) {
+                    const roomData = await roomRes.json();
+                    setFormData({
+                        roomNumber: roomData.roomNumber,
+                        floor: roomData.floor.toString(),
+                        roomTypeId: roomData.roomTypeId,
+                        status: roomData.status,
+                    });
+                }
+                
+                if (typesRes.ok) {
+                    const typesData = await typesRes.json();
+                    setRoomTypes(typesData);
+                }
+                setIsLoading(false);
+            };
+            fetchData();
+        }
+    }, [id]);
 
-      if (!res.ok) throw new Error('Gagal memperbarui data');
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        await fetch(`/api/rooms/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData),
+        });
+        router.push('/admin/rooms');
+        router.refresh();
+    };
 
-      router.push('/admin/rooms');
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    if (isLoading) return <p className="p-8">Memuat data kamar...</p>;
 
-  if (isLoading) return <p className="p-8">Memuat data...</p>;
-
-  return (
-    <div className="p-8 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Edit Kamar</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Input Nomor Kamar */}
-        <div>
-          <label htmlFor="roomNumber" className="block text-sm font-medium text-gray-700">Nomor Kamar</label>
-          <input
-            type="text"
-            id="roomNumber"
-            value={formData.roomNumber}
-            onChange={handleChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-            required
-          />
+    return (
+        <div className="max-w-lg mx-auto">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Edit Kamar</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <Label htmlFor="roomNumber">Nomor Kamar</Label>
+                            <Input id="roomNumber" value={formData.roomNumber} onChange={(e) => setFormData({...formData, roomNumber: e.target.value})} required />
+                        </div>
+                        <div>
+                            <Label htmlFor="floor">Lantai</Label>
+                            <Input id="floor" type="number" value={formData.floor} onChange={(e) => setFormData({...formData, floor: e.target.value})} required />
+                        </div>
+                        <div>
+                            <Label htmlFor="roomTypeId">Tipe Kamar</Label>
+                            <Select value={formData.roomTypeId} onValueChange={(value) => setFormData({...formData, roomTypeId: value})}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {roomTypes.map(rt => (
+                                        <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="status">Status Kamar</Label>
+                            <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
+                                    <SelectItem value="OCCUPIED">OCCUPIED</SelectItem>
+                                    <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Button type="submit" disabled={isLoading} className="w-full">
+                            {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                        </Button>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
-
-        {/* Input Lantai */}
-        <div>
-          <label htmlFor="floor" className="block text-sm font-medium text-gray-700">Lantai</label>
-          <input
-            type="number"
-            id="floor"
-            value={formData.floor}
-            onChange={handleChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-            required
-          />
-        </div>
-        
-        {/* Pilihan Tipe Kamar */}
-        <div>
-          <label htmlFor="type" className="block text-sm font-medium text-gray-700">Tipe Kamar</label>
-          <select
-            id="type"
-            value={formData.type}
-            onChange={handleChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="STANDARD">STANDARD</option>
-            <option value="SPECIAL">SPECIAL</option>
-          </select>
-        </div>
-
-        {/* Pilihan Status Kamar */}
-        <div>
-          <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status Kamar</label>
-          <select
-            id="status"
-            value={formData.status}
-            onChange={handleChange}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="AVAILABLE">AVAILABLE</option>
-            <option value="OCCUPIED">OCCUPIED</option>
-            <option value="MAINTENANCE">MAINTENANCE</option>
-          </select>
-        </div>
-
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400"
-        >
-          {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
-        </button>
-      </form>
-    </div>
-  );
+    );
 }

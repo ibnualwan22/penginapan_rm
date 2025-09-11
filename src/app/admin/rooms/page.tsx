@@ -1,21 +1,26 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import DeleteRoomButton from '@/components/DeleteRoomButton';
+import DeleteRoomButton from '@/components/DeleteRoomButton'; // Pastikan path ini benar
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { format } from 'date-fns';
 
 async function getRooms() {
-    return prisma.room.findMany({ orderBy: { roomNumber: 'asc' } });
+    // --- PERUBAHAN DI SINI ---
+    // Sertakan data dari relasi roomType
+    return prisma.room.findMany({ 
+        orderBy: { roomNumber: 'asc' },
+        include: {
+            roomType: true 
+        }
+    });
 }
 
 export default async function RoomsPage() {
     const session = await getServerSession(authOptions);
     const userPermissions = session?.user?.permissions || [];
     
-    // Cek izin yang relevan
     const canCreate = userPermissions.includes('rooms:create');
     const canUpdate = userPermissions.includes('rooms:update');
     const canDelete = userPermissions.includes('rooms:delete');
@@ -26,7 +31,6 @@ export default async function RoomsPage() {
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Manajemen Kamar</h1>
-                {/* Tampilkan tombol hanya jika punya izin */}
                 {canCreate && (
                     <Button asChild>
                         <Link href="/admin/rooms/new">Tambah Kamar Baru</Link>
@@ -50,7 +54,9 @@ export default async function RoomsPage() {
                             <TableRow key={room.id}>
                                 <TableCell className="font-medium">{room.roomNumber}</TableCell>
                                 <TableCell>{room.floor}</TableCell>
-                                <TableCell>{room.type}</TableCell>
+                                {/* --- PERUBAHAN DI SINI --- */}
+                                {/* Tampilkan nama dari relasi roomType */}
+                                <TableCell>{room.roomType.name}</TableCell>
                                 <TableCell>{room.status}</TableCell>
                                 {(canUpdate || canDelete) && (
                                     <TableCell className="text-center">
@@ -68,3 +74,4 @@ export default async function RoomsPage() {
         </div>
     );
 }
+

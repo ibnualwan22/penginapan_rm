@@ -4,11 +4,12 @@ import prisma from '@/lib/prisma';
 // Ambil data satu kamar berdasarkan ID
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> } // <-- Tambahkan Promise
 ) {
   try {
+    const { id } = await params; // <-- Wajib di-await
     const room = await prisma.room.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
     if (!room) {
       return new NextResponse('Kamar tidak ditemukan', { status: 404 });
@@ -25,16 +26,22 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json();
-    const { roomNumber, floor, type, status } = body;
+    const { id } = await params;
+    // Sekarang kita menerima roomTypeId, bukan 'type'
+    const { roomNumber, floor, roomTypeId, status } = await request.json();
 
     const updatedRoom = await prisma.room.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         roomNumber,
         floor: parseInt(floor),
-        type,
         status,
+        // Hubungkan ke RoomType yang dipilih
+        roomType: {
+          connect: {
+            id: roomTypeId,
+          },
+        },
       },
     });
     return NextResponse.json(updatedRoom);
