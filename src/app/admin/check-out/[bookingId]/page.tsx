@@ -96,6 +96,8 @@ export default function CheckOutPage() {
   const [chargeableItems, setChargeableItems] = useState<ChargeableItem[]>([]);
   const [selectedChargeId, setSelectedChargeId] = useState<string>('');
   const [addedCharges, setAddedCharges] = useState<AddedCharge[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<string | undefined>();
+  const [paymentStatus, setPaymentStatus] = useState<string | undefined>();
 
   useEffect(() => {
     if (bookingId) {
@@ -109,6 +111,8 @@ export default function CheckOutPage() {
         if (bookingRes.ok) {
           const bookingData = await bookingRes.json();
           setBooking(bookingData);
+          setPaymentMethod(bookingData.paymentMethod);
+          setPaymentStatus(bookingData.paymentStatus);
         }
 
         if (itemsRes.ok) {
@@ -159,6 +163,8 @@ export default function CheckOutPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         charges: addedCharges.map(({ chargeableItemId, quantity }) => ({ chargeableItemId, quantity })),
+        paymentMethod,
+        paymentStatus,
       }),
     });
     router.push('/admin');
@@ -230,6 +236,36 @@ export default function CheckOutPage() {
             </div>
           </div>
           
+          <div className="border-t pt-4">
+        <h3 className="font-semibold mb-2">Status Pembayaran</h3>
+        {booking.paymentStatus === 'PAID' ? (
+            <p className="text-green-600 font-medium">Sudah Lunas ({booking.paymentMethod})</p>
+        ) : (
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <Label>Metode Pembayaran</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="CASH">Cash</SelectItem>
+                            <SelectItem value="TRANSFER">Transfer</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div>
+                    <Label>Status</Label>
+                    <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="PAID">Lunas</SelectItem>
+                            <SelectItem value="UNPAID">Belum Lunas</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+        )}
+      </div>
+
           <div className="mt-4 p-4 bg-secondary rounded-lg space-y-2">
             <h3 className="font-semibold mb-2">Rincian Biaya</h3>
             <div className="flex justify-between text-sm">

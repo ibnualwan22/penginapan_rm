@@ -50,7 +50,7 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { charges } = body;
+    const { charges, paymentMethod, paymentStatus } = body; // <-- Ambil data pembayaran
 
     const booking = await prisma.booking.findUnique({
       where: { id: params.id },
@@ -119,7 +119,9 @@ export async function PATCH(
           checkOut: now,
           lateFee,
           totalFee,
-          checkedOutById: session.user.id, // Simpan ID pengguna yang melakukan check-out
+          checkedOutById: session.user.id,
+          paymentMethod: paymentMethod,
+          paymentStatus: paymentStatus,
         },
       });
 

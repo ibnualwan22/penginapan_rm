@@ -21,6 +21,8 @@ export async function POST(request: Request) {
       addressLabel,
       bookingType,
       duration,
+      paymentMethod, // <-- Ambil data pembayaran
+      paymentStatus,
     } = body;
 
     if (!roomId || !guestName || !studentName || !addressId || !bookingType) {
@@ -59,6 +61,8 @@ export async function POST(request: Request) {
       expectedCheckOut,
       room: { connect: { id: roomId } },
       checkedInBy: { connect: { id: session.user.id } }, 
+      paymentMethod: paymentMethod || null,
+      paymentStatus: paymentStatus || null,
     };
 
     if (bookingType === 'FULL_DAY') {

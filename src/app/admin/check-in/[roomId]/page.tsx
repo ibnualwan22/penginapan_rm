@@ -28,6 +28,8 @@ export default function CheckInPage() {
   // 👉 ketatkan tipe & jadikan controlled
   const [bookingType, setBookingType] = useState<'FULL_DAY' | 'HALF_DAY'>('FULL_DAY');
   const [duration, setDuration] = useState<number>(1);
+  const [paymentMethod, setPaymentMethod] = useState<string | undefined>();
+  const [paymentStatus, setPaymentStatus] = useState<string | undefined>();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,8 @@ export default function CheckInPage() {
         addressLabel: selectedAddress.label, // Simpan nama alamat
         bookingType,                                      // 'FULL_DAY' | 'HALF_DAY'
         duration: bookingType === 'FULL_DAY' ? duration : 0, // HALF_DAY => 0
+        paymentMethod,
+        paymentStatus,
       };
 
       const res = await fetch('/api/bookings', {
@@ -149,6 +153,31 @@ export default function CheckInPage() {
                 />
               </div>
             )}
+            <div className="border-t pt-4 space-y-4">
+        <h3 className="text-sm font-medium text-gray-700">Catat Pembayaran Awal (Opsional)</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Metode Pembayaran</Label>
+            <Select onValueChange={setPaymentMethod}>
+              <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CASH">Cash</SelectItem>
+                <SelectItem value="TRANSFER">Transfer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select onValueChange={setPaymentStatus}>
+              <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PAID">Lunas</SelectItem>
+                <SelectItem value="UNPAID">Belum Lunas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
 
             {error && <p className="text-destructive text-sm">{error}</p>}
 

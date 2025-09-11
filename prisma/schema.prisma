@@ -121,6 +121,8 @@ model Booking {
   baseFee            Float        // Tarif dasar kamar
   lateFee            Float?       // Denda keterlambatan
   totalFee           Float        // Total biaya (dasar + denda + sanksi)
+  paymentMethod    PaymentMethod?
+  paymentStatus    PaymentStatus?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
@@ -134,6 +136,16 @@ model Booking {
   
   // Relasi ke denda barang
   charges            BookingCharge[]
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+}
+
+enum PaymentStatus {
+  PAID   // Lunas
+  UNPAID // Belum Lunas
 }
 
 enum BookingType {
