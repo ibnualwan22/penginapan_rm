@@ -2,14 +2,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import CreateUserForm from "@/components/auth/CreateUserForm";
-import EditUserForm from "@/components/auth/EditUserForm"; // <-- Impor baru
-import DeleteUserButton from "@/components/auth/DeleteUserButton"; // <-- Impor baru
+import EditUserForm from "@/components/auth/EditUserForm";
+import DeleteUserButton from "@/components/auth/DeleteUserButton";
 import prisma from "@/lib/prisma";
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 async function getUsers() {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) return [];
+
+    const { role, managedProperties } = session.user;
+    const whereClause: any = {};
+
+    if (role !== 'Super Administrator') {
+        const managedPropertyIds = managedProperties.map(p => p.id);
+        whereClause.properties = {
+            some: { propertyId: { in: managedPropertyIds } },
+        };
+        // --- PERBAIKAN PENTING ---
+        // Jangan pernah tampilkan Super Admin kepada non-super admin
+        whereClause.role = {
+            name: {
+                not: 'Super Administrator'
+            }
+        };
+    }
+
     const users = await prisma.user.findMany({
+        where: whereClause,
         include: { role: true },
         orderBy: { name: 'asc' },
     });
@@ -17,6 +38,18 @@ async function getUsers() {
 }
 
 async function getRoles() {
+    const session = await getServerSession(authOptions);
+    // Jika bukan Super Admin, hanya bisa membuat user dengan peran 'Admin Properti' atau lebih rendah
+    if (session?.user?.role !== 'Super Administrator') {
+        return prisma.role.findMany({ 
+            where: { 
+                name: {
+                    not: 'Super Administrator'
+                }
+            }
+        });
+    }
+    // Super Admin bisa memilih semua peran
     return prisma.role.findMany({ orderBy: { name: 'asc' } });
 }
 
@@ -44,7 +77,6 @@ export default async function UsersPage() {
                     </Dialog>
                 )}
             </div>
-
             <div className="rounded-lg border">
                 <Table>
                     <TableHeader>
@@ -73,7 +105,8 @@ export default async function UsersPage() {
                                                     </DialogContent>
                                                 </Dialog>
                                             )}
-                                            {canDelete && <DeleteUserButton userId={user.id} />}
+                                            {/* Jangan izinkan pengguna menghapus dirinya sendiri */}
+                                            {canDelete && user.id !== session?.user?.id && <DeleteUserButton userId={user.id} />}
                                         </div>
                                     </TableCell>
                                 )}

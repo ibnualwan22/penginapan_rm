@@ -9,6 +9,7 @@ export async function POST(request: Request) {
   if (!session || !session.user) {
     return new NextResponse('Akses ditolak', { status: 401 });
   }
+  const managedPropertyIds = session.user.managedProperties.map(p => p.id);
 
   try {
     const body = await request.json();
@@ -32,17 +33,23 @@ export async function POST(request: Request) {
     // Ambil data kamar beserta tipe dan harganya
     const room = await prisma.room.findUnique({ 
       where: { id: roomId },
-      include: { roomType: true } // <-- Sertakan data RoomType
+      include: { property: true, roomType: true } // <-- Sertakan data RoomType
     });
     if (!room) {
       return new NextResponse('Kamar tidak ditemukan', { status: 404 });
     }
+    if (!managedPropertyIds.includes(room.propertyId)) {
+        return new NextResponse('Anda tidak memiliki izin untuk kamar ini', { status: 403 }); // 403 Forbidden
+    }
 
     // --- Kalkulasi Harga Dinamis ---
-    const baseFee = bookingType === 'FULL_DAY'
-        ? room.roomType.priceFullDay
-        : room.roomType.priceHalfDay;
-
+    let baseFee = 0;
+    // Hanya hitung biaya jika properti TIDAK gratis DAN punya tipe kamar
+    if (!room.property.isFree && room.roomType) {
+      baseFee = bookingType === 'FULL_DAY'
+          ? room.roomType.priceFullDay
+          : room.roomType.priceHalfDay;
+    }
     const checkInTime = new Date();
     const days = duration > 0 ? duration : 1;
     const hoursToAdd = bookingType === 'FULL_DAY' ? days * 24 : 12;

@@ -10,23 +10,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ======================================
-// MODEL BARU UNTUK OTENTIKASI DAN AKSES
-// ======================================
+model Property {
+  id     String  @id @default(cuid())
+  name   String  @unique // "Penginapan RM" atau "Raudlatul Jannah"
+  isFree Boolean @default(false) // Kunci untuk aturan gratis/berbayar
+
+  rooms      Room[]
+  users      UserProperty[]
+}
+
+model UserProperty {
+  userId     String
+  propertyId String
+  
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, propertyId])
+}
 
 model User {
   id        String    @id @default(cuid())
   name      String
   username  String    @unique
-  password  String // Akan selalu di-hash
+  password  String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // Relasi ke Role
   roleId    String
   role      Role      @relation(fields: [roleId], references: [id])
+  
+  // DIPERBARUI: User sekarang terhubung ke properti
+  properties UserProperty[]
 
-  // Relasi ke Booking
   checkedInBookings  Booking[] @relation("CheckedInBy")
   checkedOutBookings Booking[] @relation("CheckedOutBy")
 }
@@ -66,9 +82,12 @@ model Room {
   roomNumber  String   @unique
   floor       Int
   
-  // Ganti baris 'type' yang lama dengan relasi ini
-  roomTypeId  String
-  roomType    RoomType @relation(fields: [roomTypeId], references: [id])
+  // DIPERBARUI: Setiap kamar sekarang milik sebuah properti
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+
+  roomTypeId  String?
+  roomType    RoomType? @relation(fields: [roomTypeId], references: [id])
   
   status      RoomStatus @default(AVAILABLE)
   createdAt   DateTime @default(now())

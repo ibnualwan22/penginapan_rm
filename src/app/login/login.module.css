@@ -43,7 +43,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: url('/images/login-bg.jpg') no-repeat center center/cover;
+  background: "url('/images/bg1.jpg')" no-repeat center center/cover;
   filter: blur(10px) brightness(1);
   transform: scale(1.05); /* biar tidak ada garis aneh di tepi */
   z-index: -1; /* tetap di belakang konten */

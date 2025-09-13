@@ -3,11 +3,11 @@ import prisma from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
-    // Sekarang kita menerima roomTypeId, bukan 'type'
     const body = await request.json();
-    const { roomNumber, floor, roomTypeId } = body;
+    // Terima propertyId dari form
+    const { roomNumber, floor, roomTypeId, propertyId } = body;
 
-    if (!roomNumber || !floor || !roomTypeId) {
+    if (!roomNumber || !floor || !roomTypeId || !propertyId) {
       return new NextResponse('Data tidak lengkap', { status: 400 });
     }
 
@@ -15,12 +15,8 @@ export async function POST(request: Request) {
       data: {
         roomNumber,
         floor: parseInt(floor),
-        // Gunakan 'connect' untuk membuat relasi
-        roomType: {
-          connect: {
-            id: roomTypeId,
-          },
-        },
+        property: { connect: { id: propertyId } }, // Hubungkan ke properti
+        roomType: { connect: { id: roomTypeId } },
       },
     });
 
@@ -30,7 +26,6 @@ export async function POST(request: Request) {
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
-
 export async function GET() {
   try {
     const rooms = await prisma.room.findMany({

@@ -26,6 +26,7 @@ type Transaction = {
   bookingType: string;
   totalFee: number;
   room: {
+    property: any;
     roomNumber: string;
   };
   checkedInBy: {
@@ -325,60 +326,49 @@ export default function ReportsPage() {
           </div>
           
           <div className="overflow-x-auto">
-            <div className="min-w-full inline-block align-middle">
-              <Table className="min-w-[1200px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12 text-center">No.</TableHead>
-                    <TableHead className="min-w-[80px]">Kamar</TableHead>
-                    <TableHead className="min-w-[120px]">Nama Wali</TableHead>
-                    <TableHead className="min-w-[100px] hidden sm:table-cell">No. HP</TableHead>
-                    <TableHead className="min-w-[150px] hidden lg:table-cell">Alamat</TableHead>
-                    <TableHead className="min-w-[120px]">Nama Santri</TableHead>
-                    <TableHead className="min-w-[120px]">Check-in</TableHead>
-                    <TableHead className="min-w-[100px] hidden md:table-cell">Penerima</TableHead>
-                    <TableHead className="min-w-[120px] hidden sm:table-cell">Check-out</TableHead>
-                    <TableHead className="min-w-[100px] hidden md:table-cell">Penerima</TableHead>
-                    <TableHead className="min-w-[100px] hidden sm:table-cell">Paket</TableHead>
-                    <TableHead className="min-w-[100px]">Metode</TableHead>
-                    <TableHead className="min-w-[80px] hidden sm:table-cell">Status</TableHead>
-                    <TableHead className="min-w-[120px] text-right">Total</TableHead>
-                    <TableHead className="w-20 text-center">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={15} className="text-center h-24">
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                          <span>Memuat data...</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : transactions.length > 0 ? (
-                    transactions.map((trx: Transaction, index) => (
-                      <TableRow key={trx.id} className="hover:bg-gray-50">
-                        <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{trx.room.roomNumber}</TableCell>
-                        <TableCell className="max-w-[120px] truncate" title={trx.guestName}>
-                          {trx.guestName}
+                <div className="min-w-full inline-block align-middle">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>No.</TableHead>
+                                <TableHead>Kamar</TableHead>
+                                <TableHead>Nama Wali</TableHead>
+                                <TableHead className="hidden sm:table-cell">No. HP</TableHead>
+                                <TableHead className="hidden lg:table-cell">Alamat</TableHead>
+                                <TableHead>Nama Santri</TableHead>
+                                <TableHead>Check-in</TableHead>
+                                <TableHead className="hidden md:table-cell">Penerima</TableHead>
+                                <TableHead className="hidden sm:table-cell">Check-out</TableHead>
+                                <TableHead className="hidden md:table-cell">Penerima</TableHead>
+                                <TableHead className="hidden sm:table-cell">Paket</TableHead>
+                                <TableHead>Metode</TableHead>
+                                <TableHead className="hidden sm:table-cell">Status</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="text-center">Aksi</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (
+                                <TableRow><TableCell colSpan={15} className="text-center h-24">Memuat data...</TableCell></TableRow>
+                            ) : transactions.length > 0 ? (
+                                transactions.map((trx, index) => (
+                                    <TableRow key={trx.id}>
+                                        <TableCell className="text-center">{index + 1}</TableCell>
+                                        <TableCell>{trx.room.roomNumber}</TableCell>
+                                        <TableCell>{trx.guestName}</TableCell>
+                                        <TableCell className="hidden sm:table-cell">{trx.guestPhone || '-'}</TableCell>
+                                        <TableCell className="hidden lg:table-cell">{trx.addressLabel || '-'}</TableCell>
+                                        <TableCell>{trx.studentName}</TableCell>
+                                        <TableCell className="hidden sm:table-cell text-sm">
+                          {trx.checkIn ? (
+                            <div className="space-y-1">
+                              <div>{format(new Date(trx.checkIn), 'dd MMM')}</div>
+                              <div className="text-xs text-gray-500">{format(new Date(trx.checkIn), 'HH:mm')}</div>
+                            </div>
+                          ) : '-'}
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell">{trx.guestPhone || '-'}</TableCell>
-                        <TableCell className="hidden lg:table-cell max-w-[150px] truncate" title={trx.addressLabel || '-'}>
-                          {trx.addressLabel || '-'}
-                        </TableCell>
-                        <TableCell className="max-w-[120px] truncate" title={trx.studentName}>
-                          {trx.studentName}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <div className="space-y-1">
-                            <div>{format(new Date(trx.checkIn), 'dd MMM')}</div>
-                            <div className="text-xs text-gray-500">{format(new Date(trx.checkIn), 'HH:mm')}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">{trx.checkedInBy.name}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">
+                                        <TableCell className="hidden md:table-cell">{trx.checkedInBy.name}</TableCell>
+                                        <TableCell className="hidden sm:table-cell text-sm">
                           {trx.checkOut ? (
                             <div className="space-y-1">
                               <div>{format(new Date(trx.checkOut), 'dd MMM')}</div>
@@ -386,67 +376,34 @@ export default function ReportsPage() {
                             </div>
                           ) : '-'}
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">{trx.checkedOutBy?.name || '-'}</TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">
-                          {trx.bookingType === 'FULL_DAY' ? 'Harian' : 'Setengah Hari'}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <div className={`px-2 py-1 rounded text-xs font-medium text-center ${
-                            trx.paymentMethod === 'CASH' ? 'bg-green-100 text-green-800' : 
-                            trx.paymentMethod === 'TRANSFER' ? 'bg-blue-100 text-blue-800' : 
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {trx.paymentMethod || '-'}
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {trx.paymentStatus === 'PAID' ? (
-                            <Badge variant="default" className="text-xs">Lunas</Badge>
-                          ) : trx.paymentStatus === 'UNPAID' ? (
-                            <Badge variant="destructive" className="text-xs">Belum Lunas</Badge>
-                          ) : (
-                            '-'
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          <div className="space-y-1">
-                            <div className="text-sm">Rp {trx.totalFee.toLocaleString('id-ID')}</div>
-                            {/* Mobile: Show payment status here */}
-                            <div className="sm:hidden">
-                              {trx.paymentStatus === 'PAID' ? (
-                                <Badge variant="default" className="text-xs">Lunas</Badge>
-                              ) : trx.paymentStatus === 'UNPAID' ? (
-                                <Badge variant="destructive" className="text-xs">Belum</Badge>
-                              ) : null}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <DialogTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => setSelectedTransaction(trx)}
-                              className="text-xs px-2 py-1"
-                            >
-                              Detail
-                            </Button>
-                          </DialogTrigger>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                      <TableRow>
-                        <TableCell colSpan={15} className="text-center h-24">
-                          <div className="flex flex-col items-center space-y-2">
-                            <div className="text-gray-400">📄</div>
-                            <span className="text-gray-500">Tidak ada data transaksi</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                                        <TableCell className="hidden md:table-cell">{trx.checkedOutBy?.name || '-'}</TableCell>
+                                        <TableCell className="hidden sm:table-cell">{trx.bookingType === 'FULL_DAY' ? 'Harian' : 'Setengah Hari'}</TableCell>
+                                        
+                                        {/* LOGIKA MULTI-PROPERTI */}
+                                        <TableCell>{trx.room.property.isFree ? 'N/A' : (trx.paymentMethod || '-')}</TableCell>
+                                        <TableCell className="hidden sm:table-cell">
+                                            {trx.room.property.isFree 
+                                                ? <Badge variant="secondary">Gratis</Badge>
+                                                : trx.paymentStatus === 'PAID' ? <Badge variant="default">Lunas</Badge>
+                                                : trx.paymentStatus === 'UNPAID' ? <Badge variant="destructive">Belum Lunas</Badge>
+                                                : '-'}
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">
+                                            {trx.room.property.isFree ? '-' : `Rp ${trx.totalFee.toLocaleString('id-ID')}`}
+                                        </TableCell>
+
+                                        <TableCell className="text-center">
+                                            <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm" onClick={() => setSelectedTransaction(trx)}>Detail</Button>
+                                            </DialogTrigger>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow><TableCell colSpan={15} className="text-center h-24">Tidak ada data transaksi.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
             </div>
           </div>
           

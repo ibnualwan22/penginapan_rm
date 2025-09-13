@@ -32,20 +32,23 @@ export default function CheckInPage() {
   const [paymentMethod, setPaymentMethod] = useState<string | undefined>();
   const [paymentStatus, setPaymentStatus] = useState<string | undefined>();
   
-  // State tambahan (termasuk perbaikan untuk roomNumber)
-  const [roomNumber, setRoomNumber] = useState(''); // <-- Pastikan ini ada
-  const [isLoading, setIsLoading] = useState(false);
+  // State tambahan
+  const [room, setRoom] = useState<any>(null); // State untuk menyimpan detail kamar lengkap
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Ambil data nomor kamar saat halaman dimuat
+  // Ambil data kamar, termasuk info propertinya, saat halaman dimuat
   useEffect(() => {
     if (roomId) {
       const fetchRoomData = async () => {
-        const res = await fetch(`/api/rooms/${roomId}`);
+        setIsLoading(true);
+        // Kita gunakan API yang mengambil detail kamar lengkap
+        const res = await fetch(`/api/rooms/${roomId}`); 
         if (res.ok) {
           const data = await res.json();
-          setRoomNumber(data.roomNumber); // <-- Isi state roomNumber
+          setRoom(data);
         }
+        setIsLoading(false);
       };
       fetchRoomData();
     }
@@ -82,14 +85,20 @@ export default function CheckInPage() {
     setError(null);
 
     try {
+      // Dapatkan status gratis dari state 'room'
+      const isFreeProperty = room?.property?.isFree;
+      
       const payload = {
-        roomId, guestName, guestPhone,
+        roomId,
+        guestName,
+        guestPhone,
         studentName: selectedSantri.value,
         addressId: selectedAddress.value,
         addressLabel: selectedAddress.label,
-        bookingType,
-        duration: bookingType === 'FULL_DAY' ? duration : 0,
-        paymentMethod, paymentStatus,
+        bookingType: isFreeProperty ? 'FULL_DAY' : bookingType,
+        duration: isFreeProperty ? 1 : (bookingType === 'FULL_DAY' ? duration : 0),
+        paymentMethod: isFreeProperty ? null : paymentMethod,
+        paymentStatus: isFreeProperty ? 'UNPAID' : paymentStatus,
       };
 
       const res = await fetch('/api/bookings', {
@@ -104,31 +113,38 @@ export default function CheckInPage() {
       }
 
       const newBooking = await res.json();
-      if (guestPhone) {
+      if (guestPhone && room?.roomNumber) { // Pastikan roomNumber ada
         const formattedPhone = guestPhone.startsWith('62') ? guestPhone : `62${guestPhone.substring(1)}`;
-        const paymentStatusText = paymentStatus === 'PAID' ? 'Lunas' : 'Belum Lunas';
-        const paymentMethodText = paymentMethod ? `\n💰 Metode: ${paymentMethod}` : '';
+        
+        let paymentInfo = '';
+        if (!isFreeProperty) {
+            const paymentStatusText = payload.paymentStatus === 'PAID' ? 'Lunas' : 'Belum Lunas';
+            const paymentMethodText = payload.paymentMethod ? `\n💰 Metode: ${payload.paymentMethod}` : '';
+            paymentInfo = `💳 Status Pembayaran: ${paymentStatusText}${paymentMethodText}\n💵 Total Biaya: Rp ${newBooking.totalFee.toLocaleString('id-ID')}`;
+        } else {
+            paymentInfo = '💳 Status Pembayaran: Gratis (Tidak ada biaya)';
+        }
 
         const message = [
-            '*Selamat Datang di Penginapan Roudlatul Muta’alimin*',
-            `_Yth. Bapak/Ibu ${guestName}_,`,
+            '📩 Pesan Selamat Datang (Check-In)',
+            'Selamat Datang di Penginapan Roudlatul Muta’alimin',
+            `Yth. Bapak/Ibu ${guestName},`,
             '',
             'Terima kasih telah melakukan proses check-in. Dengan senang hati kami sampaikan detail informasi menginap Anda:',
-            `*Santri* : ${selectedSantri.value}`,
-            `*Kamar*: ${roomNumber}`,
-            `*Check-in* : ${format(new Date(newBooking.checkIn), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
-            `*Jadwal Check-out* : ${format(new Date(newBooking.expectedCheckOut), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
-            `*Paket*: ${bookingType === 'FULL_DAY' ? `Harian (${duration} hari)` : 'Setengah Hari'}`,
-            `*Status Pembayaran* : ${paymentStatusText}${paymentMethodText}`,
-            `*Total Biaya* : Rp ${newBooking.totalFee.toLocaleString('id-ID')}`, // <-- BARIS BARU
+            `👤 Santri: ${selectedSantri.value}`,
+            `🛏️ Kamar: ${room.roomNumber}`,
+            `🕑 Check-in: ${format(new Date(newBooking.checkIn), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+            `📅 Jadwal Check-out: ${format(new Date(newBooking.expectedCheckOut), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+            `📦 Paket: ${isFreeProperty ? 'Fasilitas (Gratis)' : (payload.bookingType === 'FULL_DAY' ? `Harian (${payload.duration} hari)` : 'Setengah Hari')}`,
+            paymentInfo,
             '',
             'Apabila Bapak/Ibu memerlukan bantuan, jangan sungkan untuk menghubungi kontak layanan kami:',
             '',
-            '*Cafe Arwana* : 6288215278401',
-            '*Resepsionis Hotel RM* : 6285842817105',
-            '*Mobil Pelayanan Tamu* : 62882007534377 / 6282323745184',
+            '☕ Cafe Arwana: 6288215278401',
+            '🏨 Resepsionis Hotel RM: 6285842817105',
+            '🚗 Mobil Pelayanan Tamu: 62882007534377 / 6282323745184',
             '',
-            "Kenyamanan Bapak/Ibu adalah prioritas kami, semoga masa tinggal ini memberi ketenangan dan rasa aman."
+            '🙏 Semoga masa tinggal Bapak/Ibu bersama kami memberikan kenyamanan dan pengalaman yang berkesan.'
         ].join('\n');
 
         const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
@@ -145,11 +161,18 @@ export default function CheckInPage() {
     }
   };
 
+  const isFreeProperty = room?.property?.isFree;
+
+  // Tampilkan pesan loading jika data kamar belum siap
+  if (isLoading || !room) {
+    return <p className="p-8">Memuat data kamar...</p>;
+  }
+
   return (
     <div className="p-4 sm:p-8 max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Formulir Check-in (Kamar {roomNumber})</CardTitle>
+          <CardTitle>Formulir Check-in (Kamar {room.roomNumber})</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -176,49 +199,54 @@ export default function CheckInPage() {
                 <AsyncSelect instanceId="address-select" cacheOptions defaultOptions loadOptions={loadAddressOptions} onChange={setSelectedAddress} placeholder="Ketik min. 3 huruf..." isClearable />
             </div>
             
-            <div className="space-y-2">
-                <Label htmlFor="bookingType">Paket Menginap</Label>
-                <Select value={bookingType} onValueChange={(v) => setBookingType(v as 'FULL_DAY' | 'HALF_DAY')}>
-                    <SelectTrigger><SelectValue placeholder="Pilih paket" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="FULL_DAY">Satu Hari</SelectItem>
-                        <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            {bookingType === 'FULL_DAY' && (
+            {/* --- TAMPILKAN BAGIAN BIAYA HANYA JIKA PROPERTI TIDAK GRATIS --- */}
+            {!isFreeProperty && (
+              <>
                 <div className="space-y-2">
-                    <Label htmlFor="duration">Lama Durasi (hari)</Label>
-                    <Input type="number" id="duration" value={Number.isFinite(duration) ? duration : 1} onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value || '1', 10)))} min="1" required />
+                  <Label htmlFor="bookingType">Paket Menginap</Label>
+                  <Select value={bookingType} onValueChange={(v) => setBookingType(v as 'FULL_DAY' | 'HALF_DAY')}>
+                      <SelectTrigger><SelectValue placeholder="Pilih paket" /></SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="FULL_DAY">Satu Hari</SelectItem>
+                          <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
+                      </SelectContent>
+                  </Select>
                 </div>
+
+                {bookingType === 'FULL_DAY' && (
+                    <div className="space-y-2">
+                        <Label htmlFor="duration">Lama Durasi (hari)</Label>
+                        <Input type="number" id="duration" value={Number.isFinite(duration) ? duration : 1} onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value || '1', 10)))} min="1" required />
+                    </div>
+                )}
+                
+                <div className="border-t pt-4 space-y-4">
+                  <h3 className="text-sm font-medium text-gray-700">Catat Pembayaran Awal (Opsional)</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Metode Pembayaran</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CASH">Cash</SelectItem>
+                          <SelectItem value="TRANSFER">Transfer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PAID">Lunas</SelectItem>
+                          <SelectItem value="UNPAID">Belum Lunas</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
-            
-            <div className="border-t pt-4 space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Catat Pembayaran Awal (Opsional)</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Metode Pembayaran</Label>
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CASH">Cash</SelectItem>
-                      <SelectItem value="TRANSFER">Transfer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-                    <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PAID">Lunas</SelectItem>
-                      <SelectItem value="UNPAID">Belum Lunas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
 
             {error && <p className="text-destructive text-sm">{error}</p>}
 
@@ -231,4 +259,3 @@ export default function CheckInPage() {
     </div>
   );
 }
-

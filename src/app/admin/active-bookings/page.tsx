@@ -4,13 +4,22 @@ import WhatsappButton from "@/components/WhatsappButton";
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { LogOut } from 'lucide-react';
-import prisma from "@/lib/prisma"; // <-- 1. Impor prisma
+import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-// 2. Ubah fungsi ini untuk mengambil data langsung dari database
 async function getActiveBookings() {
-  const activeBookings = await prisma.booking.findMany({
+  const session = await getServerSession(authOptions);
+  const managedPropertyIds = session?.user?.managedProperties.map(p => p.id) || [];
+
+  if (managedPropertyIds.length === 0) return [];
+
+  return prisma.booking.findMany({
     where: {
       checkOut: null,
+      room: {
+        propertyId: { in: managedPropertyIds },
+      },
     },
     select: {
       id: true,
@@ -21,15 +30,10 @@ async function getActiveBookings() {
       checkIn: true,
       expectedCheckOut: true,
       bookingType: true,
-      room: {
-        select: { roomNumber: true },
-      },
+      room: { select: { roomNumber: true } },
     },
-    orderBy: {
-      checkIn: 'asc',
-    },
+    orderBy: { checkIn: 'asc' },
   });
-  return activeBookings;
 }
 
 export default async function ActiveBookingsPage() {
@@ -53,9 +57,9 @@ export default async function ActiveBookingsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bookings.map((booking) => (
+            {bookings.map((booking: any) => (
               <TableRow key={booking.id}>
-                <TableCell className="font-medium">{booking.room.roomNumber}</TableCell>
+                <TableCell>{booking.room.roomNumber}</TableCell>
                 <TableCell>{booking.guestName}</TableCell>
                 <TableCell>{booking.studentName}</TableCell>
                 <TableCell>{booking.addressLabel || '-'}</TableCell>

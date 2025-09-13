@@ -18,14 +18,16 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { username: credentials.username },
-          include: {
+          include: { 
             role: {
               include: {
-                permissions: {
-                  include: {
-                    permission: true
-                  }
-                }
+                permissions: { include: { permission: true } }
+              }
+            },
+            // Sertakan properti yang dikelola pengguna
+            properties: {
+              include: {
+                property: true
               }
             }
           }
@@ -33,17 +35,22 @@ export const authOptions: NextAuthOptions = {
 
         if (user && user.role && bcrypt.compareSync(credentials.password, user.password)) {
           const permissions = user.role.permissions.map(p => p.permission.name);
-
-          // Return data user yang akan disimpan di session
+          // Ambil daftar properti yang dikelola
+          const managedProperties = user.properties.map(up => ({
+            id: up.property.id,
+            name: up.property.name,
+          }));
+          
           return {
             id: user.id,
             name: user.name,
             username: user.username,
             role: user.role.name,
             permissions: permissions,
+            managedProperties: managedProperties, // <-- Tambahkan ke data user
           };
         }
-
+        
         return null;
       }
     })
@@ -53,19 +60,19 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user }) {
-      // Saat pertama kali login, 'user' akan terisi
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.permissions = user.permissions;
+        token.managedProperties = user.managedProperties; // <-- Tambahkan ke token
       }
       return token;
     },
     async session({ session, token }) {
-      // Ambil data dari token dan masukkan ke session
       session.user.id = token.id;
       session.user.role = token.role;
       session.user.permissions = token.permissions;
+      session.user.managedProperties = token.managedProperties; // <-- Tambahkan ke sesi
       return session;
     },
   },

@@ -1,64 +1,58 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function GET(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+    return new NextResponse('Akses ditolak', { status: 401 });
+  }
+  const managedPropertyIds = session.user.managedProperties.map(p => p.id);
+
+  if (managedPropertyIds.length === 0) {
+    return NextResponse.json([]);
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-    console.log("Received 'from' date:", from);
-    console.log("Received 'to' date:", to);
+
     const whereClause: any = {
-      checkOut: {
-        not: null,
+      checkOut: { not: null },
+      // Filter berdasarkan properti yang dikelola
+      room: {
+        propertyId: {
+          in: managedPropertyIds,
+        },
       },
     };
 
     if (from && to) {
-      // Buat objek Date dari string tanggal UTC yang diterima
       const startDate = new Date(from);
       const endDate = new Date(to);
-
-      
-
-      // Secara eksplisit atur waktu ke awal dan akhir hari
-      // berdasarkan zona waktu server (diasumsikan Asia/Jakarta)
-      // startDate.setHours(0, 0, 0, 0);
-      // endDate.setHours(23, 59, 59, 999);
-      console.log("Start Date:", startDate);
-      console.log("End Date:", endDate);
-
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
       whereClause.checkOut = {
-        gte: startDate, // Lebih besar atau sama dengan pukul 00:00 WIB
-        lte: endDate,   // Lebih kecil atau sama dengan pukul 23:59 WIB
-
+        gte: startDate,
+        lte: endDate,
       };
     }
 
     const transactions = await prisma.booking.findMany({
       where: whereClause,
-      // --- PERUBAHAN UTAMA DI SINI ---
       include: {
+        // --- PERUBAHAN DI SINI ---
         room: {
-          select: {
-            roomNumber: true,
+          include: {
+            property: true, // Sertakan detail properti
           },
         },
-        checkedInBy: { // Ambil data user yang melakukan check-in
-          select: {
-            name: true,
-          },
-        },
-        checkedOutBy: { // Ambil data user yang melakukan check-out
-          select: {
-            name: true,
-          },
-        },
+        checkedInBy: { select: { name: true } },
+        checkedOutBy: { select: { name: true } },
       },
-      orderBy: {
-        checkOut: 'desc',
-      },
+      orderBy: { checkOut: 'desc' },
     });
 
     return NextResponse.json(transactions);

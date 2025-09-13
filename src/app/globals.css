@@ -120,3 +120,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+.property-item .img img {
+  object-fit: cover; /* Memastikan gambar mengisi area tanpa terdistorsi */
+  height: 100%;
+  width: 100%;
+}
+
+/* Sembunyikan slide lain saat loading agar tidak numpuk */
+.property-slider.is-loading > *:not(:first-child) { display: none; }
+
+/* Pastikan lebar & overflow benar setelah tiny-slider aktif */
+.property-slider { width: 100%; }
+.property-slider .tns-outer { overflow: hidden; }
+
+/* Kartu memenuhi slide dengan rapi */
+.property-slider .item .card { height: 100%; }
+.property-slider .tns-item { padding: 0 15px; }
+.property-item .img img { width: 100%; height: auto; display: block; }
+
