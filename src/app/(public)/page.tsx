@@ -61,13 +61,13 @@ export default async function HomePage() {
               <div className="col-md-6 col-lg-4">
                   <div className="stats-item">
                       <span className="font-weight-bold h1">{stats.rmBookings}</span>
-                      <span className="d-block">Total Tamu Dilayani (Penginapan RM)</span>
+                      <span className="d-block">Total Reservasi (Penginapan RM)</span>
                   </div>
               </div>
               <div className="col-md-6 col-lg-4">
                   <div className="stats-item">
                       <span className="font-weight-bold h1">{stats.rjBookings}</span>
-                      <span className="d-block">Total Tamu Dilayani (Raudlatul Jannah)</span>
+                      <span className="d-block">Total Reservasi (Raudlatul Jannah)</span>
                   </div>
               </div>
           </div>

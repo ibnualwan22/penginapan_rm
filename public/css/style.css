@@ -10375,3 +10375,44 @@ nav[aria-label="breadcrumb"] li:before {
       .site-footer .social li a:hover {
         background: #00204a;
         color: #fff; }
+
+/* Umum: posisi & jarak nav dots */
+.tns-nav{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap: 10px;            /* <<< jarak antar dot */
+  margin: 16px 0;       /* <<< jarak dari konten di atas/bawah */
+}
+
+/* Ukuran dot */
+.tns-nav > button{
+  width: 12px;          /* <<< besar dot */
+  height: 12px;
+  border-radius: 50%;
+  border: 0;
+  background: #c4c9cf;  /* warna dot pasif */
+  opacity: .8;
+}
+
+/* Dot aktif */
+.tns-nav > button.tns-nav-active{
+  background: #0b5d5a;  /* warna aktif */
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+/* Aksesibilitas: ring saat fokus keyboard */
+.tns-nav > button:focus-visible{
+  outline: 2px solid #fff;
+  box-shadow: 0 0 0 3px rgba(11,93,90,.6);
+}
+
+/* Khusus hero slider (opsional): letakkan di atas gambar */
+.hero .tns-nav{
+  position: absolute;
+  left: 0; right: 0; bottom: 24px;   /* geser ke atas/bawah sesuai selera */
+  z-index: 3;
+  margin: 0;                         /* biar tidak mendorong layout */
+}
+

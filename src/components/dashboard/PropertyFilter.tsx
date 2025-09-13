@@ -37,7 +37,7 @@ export default function PropertyFilter({ properties }: { properties: ManagedProp
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Semua Properti</SelectItem>
+          <SelectItem value="all">Penginapan RJ & RM</SelectItem>
           {properties.map(prop => (
             <SelectItem key={prop.id} value={prop.id}>{prop.name}</SelectItem>
           ))}

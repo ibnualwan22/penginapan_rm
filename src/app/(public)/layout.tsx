@@ -12,7 +12,8 @@ export default function PublicLayout({
       <link rel="stylesheet" href="/css/tiny-slider.css" />
       <link rel="stylesheet" href="/css/aos.css" />
       <link rel="stylesheet" href="/css/style.css" />
-      <link rel="stylesheet" href="/css/bootstrap.min.css" />
+      <link rel="stylesheet" href="/css/bootstrap.css" />
+      
       
 
 
@@ -29,9 +30,10 @@ export default function PublicLayout({
         <div className="container">
           <div className="menu-bg-wrap">
             <div className="site-navigation">
-              <a href="/" className="logo m-0 float-start">Penginapan RM & RJ</a>
+              <a href="/" className="logo m-0 float-start">GPS PRO</a>
               <ul className="js-clone-nav d-none d-lg-inline-block text-start site-menu float-end">
                 <li className="active"><a href="/">Home</a></li>
+                <li className="active"><a href="/properties">Daftar Kamar</a></li> 
                 <li><a href="/about">Tentang Kami</a></li>
                 <li><a href="/contact">Kontak</a></li>
               </ul>

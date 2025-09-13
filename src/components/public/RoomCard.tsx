@@ -13,6 +13,23 @@ export default function RoomCard({ room, wrap = false }: { room: Room; wrap?: bo
   const waMessage = `Assalamu'alaikum, saya ingin menanyakan ketersediaan Kamar ${room.roomNumber} di ${room.property.name}.`;
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
+  // Anggap gratis jika flag isFree true ATAU nama properti berisi "Raudlatul Jannah"
+  const isRJFree =
+    room.property.isFree ||
+    /raudlatul\s*jannah/i.test(room.property.name);
+
+  // Tentukan teks harga
+  let priceNode: React.ReactNode = null;
+  if (isRJFree) {
+    priceNode = <span>Gratis</span>;
+  } else if (room.roomType?.priceFullDay) {
+    priceNode = (
+      <span>
+        Rp {room.roomType.priceFullDay.toLocaleString("id-ID")} / hari
+      </span>
+    );
+  }
+
   const card = (
     <div className="property-item mb-30" data-aos="fade-up">
       {/* Gambar tidak clickable */}
@@ -25,11 +42,8 @@ export default function RoomCard({ room, wrap = false }: { room: Room; wrap?: bo
       </div>
 
       <div className="property-content">
-        {!room.property.isFree && room.roomType && (
-          <div className="price mb-2">
-            <span>Rp {room.roomType.priceFullDay?.toLocaleString("id-ID")} / hari</span>
-          </div>
-        )}
+        {/* Selalu render container harga bila ada priceNode */}
+        {priceNode && <div className="price mb-2">{priceNode}</div>}
 
         <div>
           <span className="d-block mb-2 text-black-50">{room.property.name}</span>
@@ -39,7 +53,7 @@ export default function RoomCard({ room, wrap = false }: { room: Room; wrap?: bo
           <div className="d-flex gap-2 flex-wrap">
             <Link
               href={`/properties/${room.id}`}
-              className="btn btn-outline-primary py-2 px-3"
+              className="btn btn-outline-primary btn-sm"
               prefetch={false}
             >
               Lihat detail
@@ -49,7 +63,7 @@ export default function RoomCard({ room, wrap = false }: { room: Room; wrap?: bo
               href={waLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-primary py-2 px-3"
+              className="btn btn-primary btn-sm"
             >
               Hubungi via WhatsApp
             </a>
@@ -59,6 +73,5 @@ export default function RoomCard({ room, wrap = false }: { room: Room; wrap?: bo
     </div>
   );
 
-  // Jika dipakai di grid biasa: <RoomCard wrap />
   return wrap ? <div className="col-12 col-sm-6 col-lg-4">{card}</div> : card;
 }

@@ -45,6 +45,7 @@ export default async function PropertySinglePage(props: { params: Promise<{ id: 
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
   return (
+   <div className="pt-nav">
     <div className="section">
       <div className="container">
         <div className="row justify-content-between">
@@ -81,6 +82,7 @@ export default async function PropertySinglePage(props: { params: Promise<{ id: 
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

@@ -139,3 +139,43 @@
 .property-slider .tns-item { padding: 0 15px; }
 .property-item .img img { width: 100%; height: auto; display: block; }
 
+/* Posisi & warna teks di hero */
+.hero { position: relative; }
+.hero .hero-content{
+  position: absolute;
+  inset: 0;                    /* full cover */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;                  /* di atas overlay gambar */
+  padding: 0 1rem;
+}
+.hero .heading{
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+.hero .hero-sub{
+  color: rgba(255,255,255,.9);
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* Saat scroll ke anchor, beri offset setinggi navbar */
+:root{ --nav-height: 96px; }
+@media (max-width: 991.98px){ :root{ --nav-height: 72px; } }
+#rooms{ scroll-margin-top: var(--nav-height); }
+
+.pt-nav { padding-top: var(--nav-height); }
+
+.btn-compact {
+  padding: .35rem .6rem;   /* lebih kecil dari default */
+  font-size: .875rem;      /* ~14px */
+  line-height: 1.2;
+  border-radius: .5rem;
+  white-space: nowrap;     /* cegah teks patah */
+}
+@media (max-width: 576px){
+  .btn-compact { padding: .3rem .5rem; font-size: .8rem; }
+}
+
+

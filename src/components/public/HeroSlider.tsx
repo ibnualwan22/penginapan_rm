@@ -6,14 +6,10 @@ export default function HeroSlider({ images }: { images: string[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // @ts-ignore
-    const tns = (window as any)?.tns
+    const tns: any = (window as any)?.tns
     const el = containerRef.current
     if (!tns || !el || el.dataset.tnsInited) return
-
-    // tandai agar tidak inisialisasi 2x saat hot reload
     el.dataset.tnsInited = 'true'
-
     tns({
       container: el,
       items: 1,
@@ -39,23 +35,29 @@ export default function HeroSlider({ images }: { images: string[] }) {
               backgroundImage: `url('${src}')`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              minHeight: '80vh', // jaga tinggi
+              minHeight: '80vh',
             }}
           />
         ))}
       </div>
 
-      {/* konten teks di atas slider */}
-      <div className="container">
-        <div className="row justify-content-center align-items-center">
-          <div className="col-lg-9 text-center">
-            <h1 className="heading" data-aos="fade-up">
-              Selamat Datang di Penginapan Pondok Pesantren Roudlatul Muta'alimin
-            </h1>
-            <p data-aos="fade-up">
-              Kenyamanan Anda adalah prioritas kami. Temukan kamar yang sesuai dengan kebutuhan Anda di bawah ini.
-            </p>
-          </div>
+      {/* ===== Teks & CTA di atas gambar ===== */}
+      <div className="hero-content">
+        <div className="container text-center">
+          <h1 className="heading mb-3" data-aos="fade-up">
+            Selamat Datang di Penginapan Pondok Pesantren Darul Falah Amtsilati
+          </h1>
+          <p className="hero-sub mb-4" data-aos="fade-up" data-aos-delay="100">
+            Kenyamanan Anda adalah prioritas kami. Temukan kamar yang sesuai dengan kebutuhan Anda di bawah ini.
+          </p>
+          <a
+            href="/properties"
+            className="btn btn-primary btn-compact"
+            data-aos="fade-up"
+            data-aos-delay="200"
+          >
+            Lihat daftar kamar
+          </a>
         </div>
       </div>
     </div>
