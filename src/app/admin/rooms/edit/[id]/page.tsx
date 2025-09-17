@@ -24,7 +24,7 @@ async function getAllProperties() {
 }
 
 export default async function EditRoomPage({ params }: { params: { id: string }}) {
-    const { id } = params;
+    const { id } = await params;
 
     // Ambil semua data yang dibutuhkan
     const room = await getRoom(id);
