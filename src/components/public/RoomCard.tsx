@@ -37,7 +37,7 @@ export default function RoomCard({ room, wrap = false }: { room: Room; wrap?: bo
         <img
           src="/images/img_1.jpg"
           alt={`Kamar ${room.roomNumber}`}
-          className="img-fluid w-100"
+          className="img-fluid w-10"
         />
       </div>
 

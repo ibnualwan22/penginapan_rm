@@ -22,36 +22,40 @@ export async function POST(request: Request) {
       addressLabel,
       bookingType,
       duration,
-      paymentMethod, // <-- Ambil data pembayaran
-      paymentStatus,
+      paymentMethod,
+      paymentStatus
     } = body;
 
     if (!roomId || !guestName || !studentName || !addressId || !bookingType) {
         return new NextResponse('Data yang dibutuhkan tidak lengkap', { status: 400 });
     }
 
-    // Ambil data kamar beserta tipe dan harganya
     const room = await prisma.room.findUnique({ 
       where: { id: roomId },
-      include: { property: true, roomType: true } // <-- Sertakan data RoomType
+      include: { property: true, roomType: true } 
     });
     if (!room) {
       return new NextResponse('Kamar tidak ditemukan', { status: 404 });
     }
+    
     if (!managedPropertyIds.includes(room.propertyId)) {
-        return new NextResponse('Anda tidak memiliki izin untuk kamar ini', { status: 403 }); // 403 Forbidden
+        return new NextResponse('Anda tidak memiliki izin untuk kamar ini', { status: 403 });
     }
 
-    // --- Kalkulasi Harga Dinamis ---
     let baseFee = 0;
-    // Hanya hitung biaya jika properti TIDAK gratis DAN punya tipe kamar
-    if (!room.property.isFree && room.roomType) {
-      baseFee = bookingType === 'FULL_DAY'
-          ? room.roomType.priceFullDay
-          : room.roomType.priceHalfDay;
-    }
-    const checkInTime = new Date();
     const days = duration > 0 ? duration : 1;
+
+    // --- PERBAIKAN UTAMA DI SINI ---
+    // Kalkulasi harga sekarang dikalikan dengan durasi
+    if (!room.property.isFree && room.roomType) {
+      if (bookingType === 'FULL_DAY') {
+        baseFee = room.roomType.priceFullDay * days;
+      } else { // HALF_DAY
+        baseFee = room.roomType.priceHalfDay;
+      }
+    }
+
+    const checkInTime = new Date();
     const hoursToAdd = bookingType === 'FULL_DAY' ? days * 24 : 12;
     const expectedCheckOut = addHours(checkInTime, hoursToAdd);
 
@@ -67,9 +71,9 @@ export async function POST(request: Request) {
       checkIn: checkInTime,
       expectedCheckOut,
       room: { connect: { id: roomId } },
-      checkedInBy: { connect: { id: session.user.id } }, 
-      paymentMethod: paymentMethod || null,
-      paymentStatus: paymentStatus || null,
+      checkedInBy: { connect: { id: session.user.id } },
+      paymentMethod: room.property.isFree ? null : paymentMethod,
+      paymentStatus: room.property.isFree ? null : paymentStatus,
     };
 
     if (bookingType === 'FULL_DAY') {
