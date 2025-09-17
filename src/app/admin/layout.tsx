@@ -1,8 +1,16 @@
-import Link from 'next/link';
-import { LayoutDashboard, BedDouble, Users, FileText, ShieldCheck, UserCog, DollarSign } from 'lucide-react';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import LogoutButton from '@/components/auth/LogoutButton';
+import Link from "next/link";
+import {
+  LayoutDashboard,
+  BedDouble,
+  Users,
+  FileText,
+  ShieldCheck,
+  UserCog,
+  DollarSign,
+} from "lucide-react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import LogoutButton from "@/components/auth/LogoutButton";
 
 export default async function AdminLayout({
   children,
@@ -10,13 +18,13 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession(authOptions);
-  const userPermissions = session?.user?.permissions || [];
+  const userPermissions: string[] = session?.user?.permissions ?? [];
+  const managed = session?.user?.managedProperties ?? [];
 
-  // --- LOGIKA BARU UNTUK JUDUL DINAMIS ---
-  let sidebarTitle = "Panel Admin"; // Judul default
-  if (session?.user?.role !== 'Super Administrator' && session?.user?.managedProperties?.length > 0) {
-    // Jika bukan Super Admin, tampilkan nama properti yang dikelola
-    sidebarTitle = session.user.managedProperties.map(p => p.name).join(', ');
+  // --- LOGIKA UNTUK JUDUL DINAMIS ---
+  let sidebarTitle = "Panel Admin"; // default
+  if (session?.user?.role !== "Super Administrator" && managed.length > 0) {
+    sidebarTitle = managed.map((p) => p.name).join(", ");
   }
 
   return (
@@ -24,66 +32,92 @@ export default async function AdminLayout({
       <aside className="w-64 bg-gray-800 text-white flex flex-col">
         {/* Bagian Atas Sidebar */}
         <div className="p-4">
-          {/* --- GUNAKAN JUDUL DINAMIS DI SINI --- */}
           <h1 className="text-2xl font-bold mb-8">{sidebarTitle}</h1>
           <nav>
             <ul>
               {/* Dashboard */}
               <li className="mb-4">
-                <Link href="/admin" className="flex items-center p-2 rounded hover:bg-gray-700">
+                <Link
+                  href="/admin"
+                  className="flex items-center p-2 rounded hover:bg-gray-700"
+                >
                   <LayoutDashboard className="h-5 w-5 mr-3" />
                   Dashboard
                 </Link>
               </li>
+
               {/* Manajemen Kamar */}
-              {userPermissions.includes('rooms:read') && (
+              {userPermissions.includes("rooms:read") && (
                 <li className="mb-4">
-                  <Link href="/admin/rooms" className="flex items-center p-2 rounded hover:bg-gray-700">
+                  <Link
+                    href="/admin/rooms"
+                    className="flex items-center p-2 rounded hover:bg-gray-700"
+                  >
                     <BedDouble className="h-5 w-5 mr-3" />
                     Manajemen Kamar
                   </Link>
                 </li>
               )}
+
               {/* Manajemen Harga */}
-              {userPermissions.includes('prices:read') && (
+              {userPermissions.includes("prices:read") && (
                 <li className="mb-4">
-                  <Link href="/admin/prices" className="flex items-center p-2 rounded hover:bg-gray-700">
+                  <Link
+                    href="/admin/prices"
+                    className="flex items-center p-2 rounded hover:bg-gray-700"
+                  >
                     <DollarSign className="h-5 w-5 mr-3" />
                     Manajemen Harga
                   </Link>
                 </li>
               )}
+
               {/* Tamu Aktif */}
-              {userPermissions.includes('bookings:read') && (
+              {userPermissions.includes("bookings:read") && (
                 <li className="mb-4">
-                  <Link href="/admin/active-bookings" className="flex items-center p-2 rounded hover:bg-gray-700">
+                  <Link
+                    href="/admin/active-bookings"
+                    className="flex items-center p-2 rounded hover:bg-gray-700"
+                  >
                     <Users className="h-5 w-5 mr-3" />
                     Tamu Aktif
                   </Link>
                 </li>
               )}
+
               {/* Laporan */}
-              {userPermissions.includes('reports:read') && (
+              {userPermissions.includes("reports:read") && (
                 <li className="mb-4">
-                  <Link href="/admin/laporan" className="flex items-center p-2 rounded hover:bg-gray-700">
+                  <Link
+                    href="/admin/laporan"
+                    className="flex items-center p-2 rounded hover:bg-gray-700"
+                  >
                     <FileText className="h-5 w-5 mr-3" />
                     Laporan
                   </Link>
                 </li>
               )}
+
               {/* Manajemen Peran */}
-              {userPermissions.includes('roles:read') && (
+              {userPermissions.includes("roles:read") && (
                 <li className="mb-4">
-                  <Link href="/admin/roles" className="flex items-center p-2 rounded hover:bg-gray-700">
+                  <Link
+                    href="/admin/roles"
+                    className="flex items-center p-2 rounded hover:bg-gray-700"
+                  >
                     <ShieldCheck className="h-5 w-5 mr-3" />
                     Manajemen Peran
                   </Link>
                 </li>
               )}
+
               {/* Manajemen Pengguna */}
-              {userPermissions.includes('users:read') && (
+              {userPermissions.includes("users:read") && (
                 <li className="mb-4">
-                  <Link href="/admin/users" className="flex items-center p-2 rounded hover:bg-gray-700">
+                  <Link
+                    href="/admin/users"
+                    className="flex items-center p-2 rounded hover:bg-gray-700"
+                  >
                     <UserCog className="h-5 w-5 mr-3" />
                     Manajemen Pengguna
                   </Link>
@@ -95,16 +129,17 @@ export default async function AdminLayout({
 
         {/* Bagian Bawah Sidebar */}
         <div className="mt-auto p-4 border-t border-gray-700">
-            <div className="mb-4">
-                <p className="font-semibold text-sm truncate">{session?.user?.name}</p>
-                <p className="text-xs text-gray-400">
-                  {session?.user?.role === 'Super Administrator'
-                    ? 'Super Administrator'
-                    : session?.user?.managedProperties?.map(p => p.name).join(', ')
-                  }
-                </p>
-            </div>
-            <LogoutButton />
+          <div className="mb-4">
+            <p className="font-semibold text-sm truncate">
+              {session?.user?.name}
+            </p>
+            <p className="text-xs text-gray-400">
+              {session?.user?.role === "Super Administrator"
+                ? "Super Administrator"
+                : managed.map((p) => p.name).join(", ")}
+            </p>
+          </div>
+          <LogoutButton />
         </div>
       </aside>
 
@@ -114,4 +149,3 @@ export default async function AdminLayout({
     </div>
   );
 }
-
