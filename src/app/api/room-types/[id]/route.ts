@@ -1,15 +1,16 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { priceHalfDay, priceFullDay } = await request.json();
+    const { id } = await context.params;
+    const { priceHalfDay, priceFullDay } = await req.json();
 
     await prisma.roomType.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         priceHalfDay: parseFloat(priceHalfDay),
         priceFullDay: parseFloat(priceFullDay),
@@ -18,6 +19,7 @@ export async function PATCH(
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error("PATCH /api/room-types/[id] error:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
