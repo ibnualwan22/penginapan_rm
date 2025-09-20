@@ -1,12 +1,38 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 
-export default function CompactRoomCard({ room }: { room: any }) {
+type RoomImage = { id: string; url: string };
+type RoomType = { priceFullDay?: number | null };
+type Room = {
+  id: string;
+  roomNumber: string;
+  status: "OCCUPIED" | "AVAILABLE" | string;
+  images?: RoomImage[];
+  property: { name: string; isFree?: boolean };
+  roomType?: RoomType | null;
+};
+
+export default function CompactRoomCard({ room }: { room: Room }) {
   const isOccupied = room.status === "OCCUPIED";
   const isRM = room.property.name === "Penginapan RM";
+
+  // Ambil foto pertama; siapkan placeholder SVG bila kosong
+  const placeholder = `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 400'>
+       <rect width='100%' height='100%' fill='#e5e7eb'/>
+       <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle'
+             fill='#6b7280' font-size='24' font-family='sans-serif'>
+         Foto belum tersedia
+       </text>
+     </svg>`
+  )}`;
+  const imageUrl = room.images?.[0]?.url ?? placeholder;
+
   const waNumber = isRM ? "6285842817105" : "6285741193660";
   const waMessage = `Assalamu'alaikum, saya ingin menanyakan ketersediaan Kamar ${room.roomNumber} di ${room.property.name}.`;
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
+
+  const price = room.roomType?.priceFullDay ?? null;
 
   return (
     <div
@@ -18,9 +44,10 @@ export default function CompactRoomCard({ room }: { room: any }) {
       {/* Gambar */}
       <div className="w-1/3">
         <img
-          src="/images/img_2.jpg"
-          alt={`Kamar ${room.roomNumber}`}
+          src={imageUrl}
+          alt={`Foto Kamar ${room.roomNumber}`}
           className="w-full h-full object-cover"
+          loading="lazy"
         />
       </div>
 
@@ -34,9 +61,9 @@ export default function CompactRoomCard({ room }: { room: any }) {
 
           <h3 className="font-semibold text-lg mt-1">Kamar {room.roomNumber}</h3>
 
-          {!room.property.isFree && room.roomType && (
+          {!room.property.isFree && price != null && (
             <p className="text-sm text-primary font-bold">
-              Rp {room.roomType.priceFullDay.toLocaleString("id-ID")} / hari
+              Rp {Number(price).toLocaleString("id-ID")} / hari
             </p>
           )}
         </div>

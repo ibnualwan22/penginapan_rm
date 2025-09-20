@@ -83,11 +83,13 @@ export default async function RoomsPage({
                                 {(canUpdate || canDelete) && (
                                     <TableCell className="text-center">
                                         <div className="flex item-center justify-center space-x-4">
+                                            <Link href={`/admin/rooms/${room.id}/photos`} className="text-green-600 hover:text-green-900 text-xs">Foto</Link>
                                             {canUpdate && <Link href={`/admin/rooms/edit/${room.id}`} className="text-blue-600 hover:text-blue-900">Edit</Link>}
                                             {canDelete && <DeleteRoomButton roomId={room.id} />}
                                         </div>
                                     </TableCell>
                                 )}
+                                
                             </TableRow>
                         ))}
                     </TableBody>

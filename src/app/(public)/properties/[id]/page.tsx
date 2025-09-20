@@ -1,5 +1,7 @@
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import ImageGallery from "@/components/public/ImageGallery"; // <-- Komponen baru
+
 
 // Data deskripsi dan fasilitas kita tulis di sini
 const roomDetails: { [key: string]: { description: string, facilities: string[] } } = {
@@ -24,6 +26,7 @@ async function getRoom(id: string) {
     include: {
       property: true,
       roomType: true,
+      images: true,
     },
   });
 }
@@ -52,9 +55,7 @@ export default async function PropertySinglePage(props: { params: Promise<{ id: 
           <div className="col-lg-7">
             <div className="img-property-slide-wrap">
               <div className="img-property-slide">
-                <img src="/images/img_1.jpg" alt="Image 1" className="img-fluid" />
-                <img src="/images/img_2.jpg" alt="Image 2" className="img-fluid" />
-                <img src="/images/img_3.jpg" alt="Image 3" className="img-fluid" />
+                <ImageGallery images={room.images} />
               </div>
             </div>
           </div>

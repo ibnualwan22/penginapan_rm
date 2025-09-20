@@ -23,7 +23,13 @@ export async function GET(request: Request) {
         roomType: {
           select: { name: true, priceFullDay: true },
         },
-      },
+      images: {
+      take: 1,
+      select: {
+        url: true
+      }
+    }
+  },
       orderBy: [{ property: { name: 'asc' }}, { roomNumber: 'asc' }],
     });
 

@@ -11,19 +11,24 @@ import AvailableRoomsSlider from "@/components/public/AvailableRoomsSlider";
 
 // Ambil data kamar tersedia langsung dari database (no cache)
 async function getAvailableRooms() {
-  noStore(); // 2) Jangan cache hasil query ini
   return prisma.room.findMany({
-    where: { status: 'AVAILABLE' }, // pastikan enum di DB benar2 'AVAILABLE'
+    where: { status: 'AVAILABLE' },
     select: {
       id: true,
       roomNumber: true,
       property: { select: { id: true, name: true, isFree: true } },
       roomType: { select: { name: true, priceHalfDay: true, priceFullDay: true } },
+      // Ambil satu gambar pertama sebagai 'cover'
+      images: {
+        take: 1,
+        select: {
+          url: true
+        }
+      }
     },
-    orderBy: [{ property: { name: 'asc' } }, { roomNumber: 'asc' }],
+    orderBy: [{ property: { name: 'asc' }}, { roomNumber: 'asc' }],
   });
 }
-
 async function getStats() {
   noStore(); // 3) Jangan cache statistik juga
   const rmBookings = await prisma.booking.count({
