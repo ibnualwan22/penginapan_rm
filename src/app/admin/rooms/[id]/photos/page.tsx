@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import PhotoUploader from "@/components/rooms/PhotoUploader";
 import { notFound } from "next/navigation";
+import RoomImageManager from '@/components/admin/RoomImageManager';
 
 async function getRoom(id: string) {
   return prisma.room.findUnique({
@@ -20,11 +21,11 @@ export default async function RoomPhotosPage({ params }: { params: Params }) {
   if (!room) return notFound();        // ✅ lebih idiomatik
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">
-        Kelola Foto untuk Kamar {room.roomNumber}
-      </h1>
-      <PhotoUploader room={room} />
-    </div>
+    <div className="mt-8 bg-white p-6 rounded-lg shadow">
+   <RoomImageManager 
+      roomId={room.id} 
+      initialImages={room.images} 
+   />
+</div>
   );
 }
