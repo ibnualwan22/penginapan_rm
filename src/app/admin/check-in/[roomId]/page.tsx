@@ -7,252 +7,465 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Calculator, User, CreditCard, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
-type SelectOption = {
-  value: string;
-  label: string;
-  details?: any;
-};
+type SelectOption = { value: string; label: string; details?: any };
 
 export default function CheckInPage() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId as string;
 
-  // State untuk data form
+  const [room, setRoom] = useState<any>(null);
+  const [loadingRoom, setLoadingRoom] = useState(true);
+
+  // Form State
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  
+  const [includeStudent, setIncludeStudent] = useState(false);
   const [selectedSantri, setSelectedSantri] = useState<SelectOption | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<SelectOption | null>(null);
+  
   const [bookingType, setBookingType] = useState<'FULL_DAY' | 'HALF_DAY'>('FULL_DAY');
   const [duration, setDuration] = useState<number>(1);
-  const [paymentMethod, setPaymentMethod] = useState<string | undefined>();
-  const [paymentStatus, setPaymentStatus] = useState<string | undefined>();
+  const [isExtraHalfDay, setIsExtraHalfDay] = useState(false);
   
-  // State tambahan
-  const [room, setRoom] = useState<any>(null); // State untuk menyimpan detail kamar lengkap
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [amountPaid, setAmountPaid] = useState<string>(''); 
 
-  // Ambil data kamar, termasuk info propertinya, saat halaman dimuat
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // 1. Fetch Data Kamar
   useEffect(() => {
-    if (roomId) {
-      const fetchRoomData = async () => {
-        setIsLoading(true);
-        // Kita gunakan API yang mengambil detail kamar lengkap
-        const res = await fetch(`/api/rooms/${roomId}`); 
-        if (res.ok) {
-          const data = await res.json();
-          setRoom(data);
-        }
-        setIsLoading(false);
-      };
-      fetchRoomData();
-    }
+    const fetchRoom = async () => {
+      try {
+        const res = await fetch(`/api/rooms/${roomId}`);
+        if (!res.ok) throw new Error('Gagal mengambil data kamar');
+        const data = await res.json();
+        setRoom(data);
+        if (data.property.isFree) setPaymentMethod('-'); 
+      } catch (err) {
+        setError('Kamar tidak ditemukan');
+      } finally {
+        setLoadingRoom(false);
+      }
+    };
+    fetchRoom();
   }, [roomId]);
 
-  const loadSantriOptions = async (inputValue: string) => {
-    if (inputValue.length < 3) return [];
-    const res = await fetch(`/api/students?search=${inputValue}`);
-    const { data } = await res.json();
-    return data.map((santri: any) => ({
-      value: santri.name,
-      label: `${santri.name} (${santri.regency || 'Alamat tidak diketahui'})`,
-      details: santri,
-    }));
+  // 2. Kalkulator Real-time
+  const calculateTotal = () => {
+    if (!room || room.property.isFree || !room.roomType) return 0; // Kalau roomType null, return 0 (cegah NaN)
+
+    let total = 0;
+    if (bookingType === 'FULL_DAY') {
+      total = (room.roomType.priceFullDay || 0) * duration;
+      if (isExtraHalfDay) {
+        total += (room.roomType.priceHalfDay || 0);
+      }
+    } else {
+      total = (room.roomType.priceHalfDay || 0);
+    }
+    return total;
   };
 
-  const loadAddressOptions = async (inputValue: string) => {
-    if (inputValue.length < 3) return [];
-    const res = await fetch(`/api/regencies?name=${inputValue}`);
-    const { results } = await res.json();
-    return results.map((addr: any) => ({
-      value: addr.id.toString(),
-      label: addr.label,
-    }));
-  };
+  const totalEstimate = calculateTotal();
+  const numericAmountPaid = parseFloat(amountPaid) || 0;
+  const balance = totalEstimate - numericAmountPaid;
 
+  // 3. Logic WA Helper
+  const sendWhatsAppNotification = (bookingData: any) => {
+    if (!guestPhone) return;
+    
+    // Format nomor HP (08xx -> 628xx)
+    let phone = guestPhone.trim();
+    if (phone.startsWith('0')) {
+      phone = '62' + phone.slice(1);
+    }
+
+    // Format Tanggal
+    const checkInDate = new Date(bookingData.checkIn);
+    const checkOutDate = new Date(bookingData.expectedCheckOut);
+    
+    // Logic Info Pembayaran
+    let paymentInfo = '';
+    const isFreeProperty = room.property.isFree;
+    
+    if (isFreeProperty) {
+        paymentInfo = '💰 Biaya: GRATIS (Fasilitas)';
+    } else {
+        const total = bookingData.totalFee;
+        const paid = bookingData.amountPaid || 0;
+        const remaining = total - paid;
+
+        if (remaining <= 0) {
+            paymentInfo = `💰 Total Tagihan: Rp ${total.toLocaleString('id-ID')} (LUNAS)`;
+        } else {
+            paymentInfo = [
+                `💰 Total Tagihan: Rp ${total.toLocaleString('id-ID')}`,
+                `💸 Bayar Awal (DP): Rp ${paid.toLocaleString('id-ID')}`,
+                `⚠️ Sisa Kekurangan: Rp ${remaining.toLocaleString('id-ID')}`
+            ].join('\n');
+        }
+    }
+
+    // Ambil nama santri (jika ada)
+    const santriDisplay = includeStudent && selectedSantri ? selectedSantri.label : '-';
+
+    // Susun Pesan Sesuai Template Baru
+    const message = [
+        '📩 *Pesan Selamat Datang (Check-In)*',
+        'Selamat Datang di Penginapan Roudlatul Muta’alimin',
+        `Yth. Bapak/Ibu *${guestName}*,`,
+        '',
+        'Terima kasih telah melakukan proses check-in. Dengan senang hati kami sampaikan detail informasi menginap Anda:',
+        `👤 Santri: ${santriDisplay}`,
+        `🛏️ Kamar: ${room.roomNumber} (${room.property.name})`,
+        `🕑 Check-in: ${format(checkInDate, 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+        `📅 Jadwal Check-out: ${format(checkOutDate, 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+        `📦 Paket: ${isFreeProperty ? 'Fasilitas (Gratis)' : (bookingType === 'FULL_DAY' ? `Harian (${duration} hari${isExtraHalfDay ? ' + Setengah Hari' : ''})` : 'Setengah Hari')}`,
+        paymentInfo,
+        '',
+        'Apabila Bapak/Ibu memerlukan bantuan, jangan sungkan untuk menghubungi kontak layanan kami:',
+        '',
+        '☕ Cafe Arwana: 6288215278401',
+        '🏨 Resepsionis Hotel RM: 6285842817105',
+        '🚗 Mobil Pelayanan Tamu: 62882007534377 / 6282323745184',
+        '',
+        '🙏 Semoga masa tinggal Bapak/Ibu bersama kami memberikan kenyamanan dan pengalaman yang berkesan.'
+    ].join('\n');
+
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+  
+  // 4. Handle Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSantri || !selectedAddress) {
-      setError('Nama Santri dan Alamat wajib diisi.');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
+    setIsSubmitting(true);
+    setError('');
 
     try {
-      // Dapatkan status gratis dari state 'room'
-      const isFreeProperty = room?.property?.isFree;
-      
       const payload = {
         roomId,
         guestName,
         guestPhone,
-        studentName: selectedSantri.value,
-        addressId: selectedAddress.value,
-        addressLabel: selectedAddress.label,
-        bookingType: isFreeProperty ? 'FULL_DAY' : bookingType,
-        duration: isFreeProperty ? 1 : (bookingType === 'FULL_DAY' ? duration : 0),
-        paymentMethod: isFreeProperty ? null : paymentMethod,
-        paymentStatus: isFreeProperty ? 'UNPAID' : paymentStatus,
+        studentName: includeStudent ? selectedSantri?.label : '-', 
+        addressId: selectedAddress?.value,
+        addressLabel: selectedAddress?.label,
+        bookingType,
+        duration: bookingType === 'FULL_DAY' ? duration : 0,
+        isExtraHalfDay: bookingType === 'FULL_DAY' ? isExtraHalfDay : false,
+        amountPaid: numericAmountPaid,
+        paymentMethod: room?.property?.isFree ? null : paymentMethod,
       };
 
-      const res = await fetch('/api/bookings', {
+      const res = await fetch('/api/bookings/active', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const errorData = await res.text();
-        throw new Error(errorData || 'Gagal melakukan check-in');
+        const msg = await res.text();
+        throw new Error(msg);
       }
 
-      const newBooking = await res.json();
-      if (guestPhone && room?.roomNumber) { // Pastikan roomNumber ada
-        const formattedPhone = guestPhone.startsWith('62') ? guestPhone : `62${guestPhone.substring(1)}`;
-        
-        let paymentInfo = '';
-        if (!isFreeProperty) {
-            const paymentStatusText = payload.paymentStatus === 'PAID' ? 'Lunas' : 'Belum Lunas';
-            const paymentMethodText = payload.paymentMethod ? `\n💰 Metode: ${payload.paymentMethod}` : '';
-            paymentInfo = `💳 Status Pembayaran: ${paymentStatusText}${paymentMethodText}\n💵 Total Biaya: Rp ${newBooking.totalFee.toLocaleString('id-ID')}`;
-        } else {
-            paymentInfo = '💳 Status Pembayaran: Gratis (Tidak ada biaya)';
-        }
+      const responseData = await res.json();
 
-        const message = [
-            '📩 Pesan Selamat Datang (Check-In)',
-            'Selamat Datang di Penginapan Roudlatul Muta’alimin',
-            `Yth. Bapak/Ibu ${guestName},`,
-            '',
-            'Terima kasih telah melakukan proses check-in. Dengan senang hati kami sampaikan detail informasi menginap Anda:',
-            `👤 Santri: ${selectedSantri.value}`,
-            `🛏️ Kamar: ${room.roomNumber}`,
-            `🕑 Check-in: ${format(new Date(newBooking.checkIn), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
-            `📅 Jadwal Check-out: ${format(new Date(newBooking.expectedCheckOut), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
-            `📦 Paket: ${isFreeProperty ? 'Fasilitas (Gratis)' : (payload.bookingType === 'FULL_DAY' ? `Harian (${payload.duration} hari)` : 'Setengah Hari')}`,
-            paymentInfo,
-            '',
-            'Apabila Bapak/Ibu memerlukan bantuan, jangan sungkan untuk menghubungi kontak layanan kami:',
-            '',
-            '☕ Cafe Arwana: 6288215278401',
-            '🏨 Resepsionis Hotel RM: 6285842817105',
-            '🚗 Mobil Pelayanan Tamu: 62882007534377 / 6282323745184',
-            '',
-            '🙏 Semoga masa tinggal Bapak/Ibu bersama kami memberikan kenyamanan dan pengalaman yang berkesan.'
-        ].join('\n');
-
-        const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
+      // [FIX 3] Kirim WA jika ada nomor HP
+      if (guestPhone) {
+        sendWhatsAppNotification(responseData);
       }
 
-      router.push('/admin');
+      router.push('/admin'); 
       router.refresh();
-
+      
     } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
+      setError(err.message || 'Terjadi kesalahan');
+      setIsSubmitting(false);
     }
   };
 
-  const isFreeProperty = room?.property?.isFree;
+  // [FIX 2] Gunakan parameter 'search' agar cocok dengan API route3.ts
+  const loadSantri = async (inputValue: string) => {
+    if (inputValue.length < 3) return [];
+    try {
+        // PERUBAHAN DI SINI: ganti ?name= jadi ?search=
+        const res = await fetch(`/api/students?search=${inputValue}`); 
+        const data = await res.json();
+        
+        // Cek struktur data API santri Anda. 
+        // Asumsi data array langsung, atau data.data
+        const list = Array.isArray(data) ? data : (data.data || []);
+        
+        return list.map((item: any) => ({
+            value: item.id || item.regency  || item.activeDormitory, 
+            label: `${item.name} (${item.activeDormitory || '-'}. ${item.regency || '-'}, )`,
+            details: item
+        }));
+    } catch (e) { return []; }
+  };
 
-  // Tampilkan pesan loading jika data kamar belum siap
-  if (isLoading || !room) {
-    return <p className="p-8">Memuat data kamar...</p>;
-  }
+  const loadRegencies = async (inputValue: string) => {
+    if (inputValue.length < 3) return [];
+    try {
+        // Fetch ke endpoint proxy Anda (yang memanggil API Amtsilati)
+        const res = await fetch(`/api/regencies?name=${inputValue}`);
+        const data = await res.json();
+        
+        // Pastikan mengambil dari array 'results' sesuai format JSON yang Anda kirim
+        if (data && data.results && Array.isArray(data.results)) {
+            return data.results.map((item: any) => ({
+                value: String(item.id),     // Konversi ID ke string agar aman
+                label: item.label,          // [FIX] Gunakan 'label' (Contoh: Kab. Tegal)
+            }));
+        }
+        return [];
+    } catch (e) { 
+        console.error("Gagal load kota:", e);
+        return []; 
+    }
+  };
+
+  if (loadingRoom) return <div className="p-8 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto"/> Memuat data kamar...</div>;
+  if (!room) return <div className="p-8 text-center text-red-500">Data kamar tidak ditemukan.</div>;
+
+  const isFree = room.property.isFree;
 
   return (
-    <div className="p-4 sm:p-8 max-w-2xl mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle>Formulir Check-in (Kamar {room.roomNumber})</CardTitle>
+    <div className="max-w-3xl mx-auto p-4 md:p-6">
+      <Card className="shadow-lg border-t-4 border-t-primary">
+        <CardHeader className="bg-gray-50/50 pb-4">
+          <CardTitle className="text-xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <span>Check-In: Kamar {room.roomNumber}</span>
+                <span className="text-xs font-normal px-2 py-1 bg-white border rounded text-gray-500">
+                {room.property.name}
+                </span>
+            </div>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        
+        <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-                <Label htmlFor="guestName">Nama Wali Santri</Label>
-                <Input type="text" id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="guestPhone">Nomor HP Wali</Label>
-                <Input type="tel" id="guestPhone" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="Contoh: 08123456789" />
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="studentName">Cari Nama Santri</Label>
-                <AsyncSelect instanceId="student-select" cacheOptions defaultOptions loadOptions={loadSantriOptions} onChange={setSelectedSantri} placeholder="Ketik min. 3 huruf..." isClearable />
-                {selectedSantri && (
-                    <div className="mt-2 p-2 bg-muted rounded text-sm text-muted-foreground"><p><b>Asrama:</b> {selectedSantri.details.activeDormitory}</p><p><b>Jenis Kelamin:</b> {selectedSantri.details.gender}</p></div>
-                )}
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="address">Cari Alamat (Kabupaten)</Label>
-                <AsyncSelect instanceId="address-select" cacheOptions defaultOptions loadOptions={loadAddressOptions} onChange={setSelectedAddress} placeholder="Ketik min. 3 huruf..." isClearable />
-            </div>
             
-            {/* --- TAMPILKAN BAGIAN BIAYA HANYA JIKA PROPERTI TIDAK GRATIS --- */}
-            {!isFreeProperty && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="bookingType">Paket Menginap</Label>
-                  <Select value={bookingType} onValueChange={(v) => setBookingType(v as 'FULL_DAY' | 'HALF_DAY')}>
-                      <SelectTrigger><SelectValue placeholder="Pilih paket" /></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="FULL_DAY">Satu Hari</SelectItem>
-                          <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
-                      </SelectContent>
+            {/* DATA TAMU */}
+            <div className="space-y-4">
+              <h3 className="font-semibold flex items-center gap-2 text-gray-700">
+                <User size={18} /> Data Tamu
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Nama Wali / Tamu <span className="text-red-500">*</span></Label>
+                  <Input 
+                    value={guestName} 
+                    onChange={e => setGuestName(e.target.value)} 
+                    placeholder="Masukkan nama lengkap"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Nomor HP (WhatsApp)</Label>
+                  <Input 
+                    value={guestPhone} 
+                    onChange={e => setGuestPhone(e.target.value)} 
+                    placeholder="Contoh: 08123456789"
+                    type="tel"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Digunakan untuk mengirim notifikasi check-in</p>
+                </div>
+              </div>
+
+              <div>
+                <Label>Kota Asal / Alamat</Label>
+                <AsyncSelect
+                  cacheOptions defaultOptions
+                  loadOptions={loadRegencies}
+                  onChange={(val) => setSelectedAddress(val as SelectOption)}
+                  placeholder="Ketik nama kota/kabupaten..."
+                  className="text-sm"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 border p-3 rounded-md bg-gray-50">
+                <Checkbox 
+                  id="includeStudent" 
+                  checked={includeStudent}
+                  onCheckedChange={(checked) => setIncludeStudent(checked as boolean)}
+                />
+                <Label htmlFor="includeStudent" className="cursor-pointer font-normal">
+                  Sertakan Data Santri yang dikunjungi?
+                </Label>
+              </div>
+
+              {includeStudent && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <Label>Cari Nama Santri</Label>
+                  <AsyncSelect
+                    cacheOptions defaultOptions={false}
+                    loadOptions={loadSantri}
+                    onChange={(val) => setSelectedSantri(val as SelectOption)}
+                    placeholder="Ketik minimal 3 huruf..."
+                    className="text-sm"
+                    noOptionsMessage={() => "Ketik nama santri..."}
+                  />
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* BIAYA & PAKET */}
+            <div className="space-y-4">
+              <h3 className="font-semibold flex items-center gap-2 text-gray-700">
+                <Calculator size={18} /> Paket & Biaya
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Tipe Booking</Label>
+                  <Select 
+                    value={bookingType} 
+                    onValueChange={(v: any) => { setBookingType(v); setIsExtraHalfDay(false); }}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FULL_DAY">Harian (Full Day)</SelectItem>
+                      <SelectItem value="HALF_DAY">Setengah Hari (Half Day)</SelectItem>
+                    </SelectContent>
                   </Select>
                 </div>
 
                 {bookingType === 'FULL_DAY' && (
-                    <div className="space-y-2">
-                        <Label htmlFor="duration">Lama Durasi (hari)</Label>
-                        <Input type="number" id="duration" value={Number.isFinite(duration) ? duration : 1} onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value || '1', 10)))} min="1" required />
-                    </div>
+                  <div>
+                    <Label>Durasi (Malam/Hari)</Label>
+                    <Input 
+                      type="number" 
+                      min={1} 
+                      value={duration} 
+                      onChange={e => setDuration(parseInt(e.target.value) || 1)}
+                    />
+                  </div>
                 )}
-                
-                <div className="border-t pt-4 space-y-4">
-                  <h3 className="text-sm font-medium text-gray-700">Catat Pembayaran Awal (Opsional)</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Metode Pembayaran</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CASH">Cash</SelectItem>
-                          <SelectItem value="TRANSFER">Transfer</SelectItem>
-                        </SelectContent>
-                      </Select>
+              </div>
+
+              {bookingType === 'FULL_DAY' && !isFree && (
+                <div className="flex items-center space-x-2 mt-2">
+                  <Checkbox 
+                    id="extraHalf" 
+                    checked={isExtraHalfDay}
+                    onCheckedChange={(c) => setIsExtraHalfDay(c as boolean)}
+                  />
+                  <Label htmlFor="extraHalf" className="cursor-pointer">
+                    Tambah Setengah Hari? (+ Rp {room.roomType?.priceHalfDay?.toLocaleString() || 0})
+                  </Label>
+                </div>
+              )}
+
+              {/* Rincian Biaya */}
+              {!isFree && (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 space-y-2 mt-4">
+                  <div className="flex justify-between text-sm">
+                    <span>Harga Dasar ({bookingType === 'FULL_DAY' ? 'Harian' : 'Setengah Hari'}):</span>
+                    <span>Rp {bookingType === 'FULL_DAY' 
+                        ? (room.roomType?.priceFullDay?.toLocaleString() || '0') 
+                        : (room.roomType?.priceHalfDay?.toLocaleString() || '0')}
+                    </span>
+                  </div>
+                  
+                  {bookingType === 'FULL_DAY' && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>x {duration} Hari</span>
+                      <span>Rp {((room.roomType?.priceFullDay || 0) * duration).toLocaleString()}</span>
                     </div>
-                    <div>
-                      <Label>Status</Label>
-                      <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-                        <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="PAID">Lunas</SelectItem>
-                          <SelectItem value="UNPAID">Belum Lunas</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  )}
+
+                  {isExtraHalfDay && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>+ Extra Setengah Hari</span>
+                      <span>Rp {(room.roomType?.priceHalfDay || 0).toLocaleString()}</span>
                     </div>
+                  )}
+                  
+                  <Separator className="bg-blue-200"/>
+                  <div className="flex justify-between font-bold text-lg text-blue-900">
+                    <span>Total Tagihan:</span>
+                    <span>Rp {totalEstimate.toLocaleString('id-ID')}</span>
                   </div>
                 </div>
-              </>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* PEMBAYARAN */}
+            {!isFree && (
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 text-gray-700">
+                  <CreditCard size={18} /> Pembayaran
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Metode Pembayaran</Label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CASH">Tunai (Cash)</SelectItem>
+                        <SelectItem value="TRANSFER">Transfer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label>Bayar Sekarang (DP)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-gray-500 text-sm">Rp</span>
+                      <Input 
+                        type="number"
+                        placeholder="0"
+                        className="pl-10"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                      />
+                    </div>
+                    <p className={`text-xs mt-1 font-medium ${balance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {balance > 0 
+                        ? `Kurang Bayar: Rp ${balance.toLocaleString('id-ID')}` 
+                        : balance < 0 
+                          ? `Kembalian: Rp ${Math.abs(balance).toLocaleString('id-ID')}`
+                          : 'LUNAS'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
 
-            {error && <p className="text-destructive text-sm">{error}</p>}
+            {error && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-200">
+                {error}
+              </div>
+            )}
 
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? 'Memproses...' : 'Submit Check-in & Kirim Notifikasi'}
+            <Button type="submit" size="lg" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memproses... </>
+              ) : (
+                <span className="flex items-center">
+                    Check In & Kirim WhatsApp <MessageCircle className="ml-2 h-4 w-4"/>
+                </span>
+              )}
             </Button>
+
           </form>
         </CardContent>
       </Card>

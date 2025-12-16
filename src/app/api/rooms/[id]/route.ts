@@ -15,7 +15,10 @@ export async function GET(
       where: { id },
       include: {
         property: { select: { id: true, name: true, isFree: true } },
-        // roomType: { select: { id: true, name: true } }, // aktifkan jika perlu
+        
+        // [FIX UTAMA] Hapus tanda komentar (//) di bawah ini dan ubah jadi 'true'
+        // agar data harga (priceFullDay/priceHalfDay) terkirim ke frontend.
+        roomType: true, 
       },
     });
 
@@ -28,7 +31,6 @@ export async function GET(
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
-
 // PATCH /api/rooms/[id]
 export async function PATCH(
   req: NextRequest,

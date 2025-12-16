@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -10,23 +9,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =========================================
+// 1. MANAJEMEN PROPERTI & USER (RBAC)
+// =========================================
+
 model Property {
   id     String  @id @default(cuid())
   name   String  @unique // "Penginapan RM" atau "Raudlatul Jannah"
-  isFree Boolean @default(false) // Kunci untuk aturan gratis/berbayar
+  isFree Boolean @default(false) 
 
   rooms      Room[]
   users      UserProperty[]
-}
-
-model UserProperty {
-  userId     String
-  propertyId String
-  
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@id([userId, propertyId])
 }
 
 model User {
@@ -40,49 +33,55 @@ model User {
   roleId    String
   role      Role      @relation(fields: [roleId], references: [id])
   
-  // DIPERBARUI: User sekarang terhubung ke properti
   properties UserProperty[]
 
+  // Relasi Log Aktivitas
   checkedInBookings  Booking[] @relation("CheckedInBy")
   checkedOutBookings Booking[] @relation("CheckedOutBy")
+}
+
+model UserProperty {
+  userId     String
+  propertyId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, propertyId])
 }
 
 model Role {
   id          String    @id @default(cuid())
   name        String    @unique
   description String?
-  
   users       User[]
   permissions RolePermission[]
 }
 
 model Permission {
   id          String    @id @default(cuid())
-  name        String    @unique // e.g., "rooms:read", "rooms:create"
+  name        String    @unique 
   description String?
-
   roles       RolePermission[]
 }
 
-// Tabel penghubung untuk relasi Many-to-Many
 model RolePermission {
   roleId       String
   permissionId String
-  
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
 }
 
+// =========================================
+// 2. MANAJEMEN KAMAR
+// =========================================
 
-// MODEL UNTUK DATA MASTER KAMAR
 model Room {
   id          String   @id @default(cuid())
   roomNumber  String   @unique
   floor       Int
   
-  // DIPERBARUI: Setiap kamar sekarang milik sebuah properti
   propertyId  String
   property    Property @relation(fields: [propertyId], references: [id])
 
@@ -98,9 +97,9 @@ model Room {
 }
 
 enum RoomStatus {
-  AVAILABLE // AVAILABLE
-  OCCUPIED  // Terisi
-  MAINTENANCE // Dalam Perbaikan
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
 }
 
 model RoomType {
@@ -112,48 +111,65 @@ model RoomType {
   rooms         Room[]
 }
 
-// Model untuk menyimpan URL foto kamar
 model RoomImage {
   id        String   @id @default(cuid())
-  url       String
+  url       String   // URL Gambar (Cloudinary Secure URL)
+  publicId  String?  // [BARU] ID Gambar di Cloudinary (untuk delete)
   roomId    String
   createdAt DateTime @default(now())
 
-  // Relasi ke model Room
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
+// =========================================
+// 3. TRANSAKSI & BOOKING (CORE UPGRADE)
+// =========================================
 
-// MODEL UTAMA UNTUK TRANSAKSI BOOKING
 model Booking {
   id                 String       @id @default(cuid())
-  guestName          String       // Nama Wali Santri
+  
+  // Data Tamu
+  guestName          String       
   guestPhone         String?
   studentName        String
-  addressId          String       // ID Kabupaten dari API
-  addressLabel       String?      // <-- TAMBAHKAN BARIS INI
+  addressId          String?      
+  addressLabel       String?
+
+  // Waktu Menginap
   checkIn            DateTime     @default(now())
-  checkOut           DateTime?    // Bisa null saat belum checkout
-  expectedCheckOut   DateTime     // Waktu seharusnya checkout
-  bookingType        BookingType  // <-- PASTIKAN BARIS INI ADA
-  durationInDays   Int         @default(0) // <-- default 0
-  baseFee            Float        // Tarif dasar kamar
-  lateFee            Float?       // Denda keterlambatan
-  totalFee           Float        // Total biaya (dasar + denda + sanksi)
-  paymentMethod    PaymentMethod?
-  paymentStatus    PaymentStatus?
+  checkOut           DateTime?    // Diisi saat tamu pulang (Real checkout)
+  expectedCheckOut   DateTime     // Rencana pulang (untuk hitung denda)
+  
+  // Paket & Durasi
+  bookingType        BookingType  // HALF_DAY atau FULL_DAY (Basis hitungan)
+  durationInDays     Int          @default(0) // Jumlah hari penuh (misal: 2 hari)
+  isExtraHalfDay     Boolean      @default(false) // [BARU] Tambahan setengah hari? (misal: 2.5 hari)
+
+  // Keuangan
+  baseFee            Float        // Biaya Kamar (Fix saat check-in)
+  lateFee            Float?       // Denda Waktu (Dihitung di backend saat checkout)
+  itemChargeFee      Float?       // [BARU] Total Denda Barang (agar query cepat)
+  totalFee           Float        // Total Tagihan (Base + Late + Item)
+  
+  amountPaid         Float        @default(0) // [BARU] Uang yang sudah dibayar (DP)
+  
+  paymentMethod      PaymentMethod?
+  paymentStatus      PaymentStatus @default(UNPAID) // Lunas/Belum/Sebagian
+
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
   // Relasi
   roomId             String
   room               Room         @relation(fields: [roomId], references: [id])
+  
   checkedInById      String
   checkedInBy        User         @relation("CheckedInBy", fields: [checkedInById], references: [id])
+  
   checkedOutById     String?
   checkedOutBy       User?        @relation("CheckedOutBy", fields: [checkedOutById], references: [id])
   
-  // Relasi ke denda barang
+  // Relasi ke denda barang (Many-to-Many via tabel penghubung)
   charges            BookingCharge[]
 }
 
@@ -163,34 +179,40 @@ enum PaymentMethod {
 }
 
 enum PaymentStatus {
-  PAID   // Lunas
-  UNPAID // Belum Lunas
+  PAID    // Lunas
+  UNPAID  // Belum Bayar
+  PARTIAL // [BARU] Bayar Sebagian (DP)
 }
 
 enum BookingType {
-  HALF_DAY // Setengah Hari
-  FULL_DAY // Satu Hari
+  HALF_DAY 
+  FULL_DAY 
 }
 
+// =========================================
+// 4. DENDA BARANG (MANAGEABLE VIA ADMIN)
+// =========================================
 
-// MODEL UNTUK MASTER ITEM SANKSI
+// Master Data Barang Denda (Admin bisa CRUD ini)
 model ChargeableItem {
   id           String  @id @default(cuid())
-  itemName     String  @unique
-  chargeAmount Float
+  itemName     String  @unique // Contoh: "Kunci Hilang", "Bantal Rusak"
+  chargeAmount Float           // Contoh: 50000
 
-  // Relasi
   bookings     BookingCharge[]
 }
 
-// MODEL UNTUK MENCATAT SANKSI PER BOOKING
+// Pencatatan Denda pada Booking tertentu
 model BookingCharge {
-  id             String @id @default(cuid())
-  quantity       Int    @default(1)
+  id               String @id @default(cuid())
+  quantity         Int    @default(1)
   
-  // Relasi
-  bookingId      String
-  booking        Booking @relation(fields: [bookingId], references: [id])
+  bookingId        String
+  booking          Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
   chargeableItemId String
-  chargeableItem ChargeableItem @relation(fields: [chargeableItemId], references: [id])
+  chargeableItem   ChargeableItem @relation(fields: [chargeableItemId], references: [id])
+  
+  // Menyimpan harga saat kejadian (snapshot), jaga-jaga kalau harga master berubah
+  chargeAtMoment   Float? 
 }
