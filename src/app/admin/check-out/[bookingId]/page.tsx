@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Receipt, Wallet, Banknote, Clock, AlertTriangle } from 'lucide-react';
+import { Loader2, Receipt, Wallet, Banknote, Clock, MessageCircle } from 'lucide-react';
 
 export default function CheckOutPage() {
   const router = useRouter();
@@ -67,11 +67,81 @@ export default function CheckOutPage() {
     setAddedCharges(prev => prev.filter((_, i) => i !== index));
   };
 
+  // --- HITUNGAN FRONTEND ---
+  const sim = booking?.simulation || { totalBillActual: 0, amountPaid: 0, durationDesc: '-', note: '' };
+  const chargesTotal = addedCharges.reduce((acc, curr) => acc + curr.itemPrice, 0);
+  const finalTotalToPay = (booking?.room?.property?.isFree ? 0 : sim.totalBillActual) + chargesTotal;
+  const finalRemaining = finalTotalToPay - (booking?.amountPaid || 0);
+
+  // --- LOGIC KIRIM WA NOTA ---
+  const sendCheckoutWhatsApp = () => {
+    if (!booking.guestPhone) return;
+
+    let phone = booking.guestPhone.trim();
+    if (phone.startsWith('0')) phone = '62' + phone.slice(1);
+
+    const now = new Date();
+    const isFree = booking.room.property.isFree;
+
+    // Susun status pembayaran
+    let paymentStatusText = '';
+    if (isFree) {
+        paymentStatusText = '✅ *GRATIS (Fasilitas)*';
+    } else {
+        if (finalRemaining < 0) {
+            paymentStatusText = `✅ *LUNAS* (Kembalian: Rp ${Math.abs(finalRemaining).toLocaleString('id-ID')})`;
+        } else if (finalRemaining === 0) {
+             paymentStatusText = '✅ *LUNAS*';
+        } else {
+             paymentStatusText = `⚠️ *Sisa Bayar:* Rp ${finalRemaining.toLocaleString('id-ID')} (LUNAS)`;
+        }
+    }
+
+    const message = [
+        `🧾 *NOTA CHECK-OUT*`,
+        `${booking.room.property.name}`,
+        '',
+        `Yth. Bapak/Ibu *${booking.guestName}*,`,
+        `👤 Santri: ${booking.studentName || '-'}`, // [BARU] Nama Santri
+        '',
+        'Terima kasih telah mempercayakan istirahat Anda kepada kami.',
+        '',
+        '*Rincian Menginap:*',
+        `🛏️ Kamar: ${booking.room.roomNumber}`,
+        `📥 Check-in: ${format(new Date(booking.checkIn), 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+        `📤 Check-out: ${format(now, 'dd MMM yyyy, HH:mm', { locale: localeID })}`,
+        `⏱️ Durasi Menginap: ${sim.durationDesc}`,
+        // [BARU] Tampilkan catatan denda waktu jika ada (misal: "Sisa 2 jam")
+        sim.note ? `ℹ️ Info Waktu: ${sim.note}` : null, 
+        '',
+        '*Rincian Biaya:*',
+        isFree ? '- Biaya Sewa: GRATIS' : `- Biaya Sewa (Aktual): Rp ${sim.totalBillActual.toLocaleString('id-ID')}`,
+        // [BARU] Tampilkan denda barang secara eksplisit
+        chargesTotal > 0 ? `- Denda Kerusakan/Barang: Rp ${chargesTotal.toLocaleString('id-ID')}` : null,
+        !isFree ? `- Total Tagihan: Rp ${finalTotalToPay.toLocaleString('id-ID')}` : null,
+        !isFree ? `- Sudah Dibayar (DP): Rp ${(booking.amountPaid || 0).toLocaleString('id-ID')}` : null,
+        '',
+        `*STATUS: ${paymentStatusText}*`,
+        '',
+        'Apabila ada barang yang tertinggal atau membutuhkan bantuan, silakan hubungi:',
+        '',
+        '☕ Cafe Arwana: 6288215278401',
+        '🏨 Resepsionis Hotel RM: 6285842817105',
+        '🚗 Mobil Pelayanan Tamu: 62882007534377 / 6282323745184',
+        '',
+        '🙏 *Jazakumullah Khairan Katsiran*',
+        'Selamat jalan dan semoga selamat sampai tujuan.'
+    ].filter(Boolean).join('\n');
+
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
   const handleCheckout = async () => {
-    if(!confirm("Pastikan pembayaran sudah diterima. Selesaikan Check-out?")) return;
+    if(!confirm("Pastikan pembayaran sudah beres. Lanjutkan Check-out?")) return;
     setIsSubmitting(true);
     try {
-      await fetch(`/api/bookings/${bookingId}`, {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -79,26 +149,26 @@ export default function CheckOutPage() {
             charges: addedCharges
         }),
       });
+
+      if (!res.ok) throw new Error('Gagal update database');
+
+      // 1. Kirim WA (Jika ada nomor HP)
+      if (booking.guestPhone) {
+        sendCheckoutWhatsApp();
+      }
+
+      // 2. Redirect
       router.push('/admin'); 
       router.refresh();
+      
     } catch (err: any) {
-      alert('Gagal check-out');
+      alert('Gagal check-out: ' + err.message);
       setIsSubmitting(false);
     }
   };
 
   if (isLoading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto"/> Menghitung tagihan...</div>;
   if (!booking) return <div className="p-10 text-center text-red-500">Data tidak ditemukan</div>;
-
-  // --- DATA SIMULASI DARI BACKEND ---
-  const sim = booking.simulation || { 
-      totalBillActual: 0, amountPaid: 0, durationDesc: '-', note: '' 
-  };
-  
-  // Total Frontend Calculation (Sewa + Barang)
-  const chargesTotal = addedCharges.reduce((acc, curr) => acc + curr.itemPrice, 0);
-  const finalTotalToPay = (booking.room.property.isFree ? 0 : sim.totalBillActual) + chargesTotal;
-  const finalRemaining = finalTotalToPay - (booking.amountPaid || 0);
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6">
@@ -120,7 +190,6 @@ export default function CheckOutPage() {
                     <span className="text-gray-500">Check-Out</span> <span className="col-span-2 font-bold text-blue-600">: SEKARANG</span>
                 </div>
                 
-                {/* Highlight Durasi Aktual */}
                 <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mt-2">
                     <p className="font-semibold flex items-center gap-2 text-blue-800">
                         <Clock className="w-4 h-4" /> Durasi Aktual: {sim.durationDesc}
@@ -134,7 +203,6 @@ export default function CheckOutPage() {
             </CardContent>
           </Card>
 
-          {/* Form Sanksi Barang */}
           <Card>
             <CardHeader className="pb-3"><CardTitle>Denda Kerusakan / Barang</CardTitle></CardHeader>
             <CardContent className="pt-2 space-y-4">
@@ -215,7 +283,11 @@ export default function CheckOutPage() {
                 </CardContent>
                 <CardFooter>
                     <Button onClick={handleCheckout} disabled={isSubmitting} size="lg" className="w-full bg-blue-700 hover:bg-blue-800">
-                        {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : "Konfirmasi Pembayaran & Selesai"}
+                        {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : (
+                           <span className="flex items-center">
+                             Konfirmasi & Kirim Nota WA <MessageCircle className="ml-2 h-4 w-4" />
+                           </span>
+                        )}
                     </Button>
                 </CardFooter>
             </Card>

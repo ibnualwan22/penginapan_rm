@@ -150,6 +150,7 @@ export async function PATCH(
 
     if (!booking) return new NextResponse('Booking tidak ditemukan', { status: 404 });
 
+    // 1. Hitung Final (Base Fee diperbarui sesuai durasi aktual)
     const now = new Date();
     let finalBaseFee = booking.baseFee; 
     let lateFee = 0; 
@@ -164,9 +165,10 @@ export async function PATCH(
         
         // Simpan harga aktual sebagai base fee baru
         finalBaseFee = calc.totalBill;
-        lateFee = 0; // Reset latefee karena sudah included di logic dinamis
+        lateFee = 0; // Reset latefee karena logika dinamis sudah mencakup denda di dalam baseFee
     }
 
+    // 2. Hitung Sanksi Barang
     let chargesFee = 0;
     if (charges && charges.length > 0) {
         for (const c of charges) {
@@ -176,9 +178,15 @@ export async function PATCH(
     }
 
     const totalFee = finalBaseFee + chargesFee;
-    let paymentStatus = 'PAID'; 
+    
+    // 3. FORCE STATUS: PAID (LUNAS)
+    // Sesuai permintaan: Saat tombol submit ditekan, status otomatis LUNAS.
+    // Asumsinya kekurangan bayar dilunasi di kasir saat itu juga.
+    const paymentStatus = 'PAID'; 
 
+    // 4. Simpan ke Database (Transaksi)
     await prisma.$transaction(async (tx) => {
+        // Update Booking
         await tx.booking.update({
             where: { id },
             data: {
@@ -188,11 +196,12 @@ export async function PATCH(
                 itemChargeFee: chargesFee,
                 totalFee: totalFee,
                 paymentMethod,
-                paymentStatus: paymentStatus as any,
+                paymentStatus: paymentStatus as any, // <--- INI KUNCINYA
                 checkedOutById: session.user.id
             }
         });
 
+        // Insert Detail Sanksi (Jika ada)
         if (charges && charges.length > 0) {
             await tx.bookingCharge.createMany({
                 data: charges.map((c: any) => ({
@@ -204,16 +213,17 @@ export async function PATCH(
             });
         }
 
+        // Update Kamar jadi Available
         await tx.room.update({
             where: { id: booking.roomId },
             data: { status: 'AVAILABLE' }
         });
     });
 
-    return NextResponse.json({ message: 'Check-out berhasil' });
+    return NextResponse.json({ message: 'Check-out berhasil & Lunas' });
 
   } catch (error) {
-    console.error(error);
+    console.error("Check-out Error:", error);
     return new NextResponse('Gagal memproses check-out', { status: 500 });
   }
 }
