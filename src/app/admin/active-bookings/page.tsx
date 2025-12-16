@@ -7,6 +7,7 @@ import { LogOut } from 'lucide-react';
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import ExtendBookingModal from '@/components/bookings/ExtendBookingModal';
 
 async function getActiveBookings() {
   const session = await getServerSession(authOptions);
@@ -30,7 +31,27 @@ async function getActiveBookings() {
       checkIn: true,
       expectedCheckOut: true,
       bookingType: true,
-      room: { select: { roomNumber: true } },
+      isExtraHalfDay: true, // [TAMBAHAN PENTING] sertakan ini juga
+      
+      // --- PERBAIKAN DI SINI ---
+      // Sebelumnya: room: { select: { roomNumber: true } }
+      // Ubah menjadi seperti di bawah ini:
+      room: {
+        select: {
+          id: true,
+          roomNumber: true,
+          propertyId: true,
+          // WAJIB: Ambil data properti (untuk cek isFree)
+          property: {
+            select: { id: true, name: true, isFree: true }
+          },
+          // WAJIB: Ambil tipe kamar (untuk harga)
+          roomType: {
+            select: { id: true, name: true, priceFullDay: true, priceHalfDay: true }
+          }
+        }
+      },
+      // -------------------------
     },
     orderBy: { checkIn: 'asc' },
   });
@@ -73,6 +94,7 @@ export default async function ActiveBookingsPage() {
                       guestPhone={booking.guestPhone}
                       expectedCheckOut={booking.expectedCheckOut}
                     />
+                    <ExtendBookingModal booking={booking} />
                     <Button asChild size="sm">
                       <Link href={`/admin/check-out/${booking.id}`}>
                         <LogOut className="h-4 w-4 mr-2" />

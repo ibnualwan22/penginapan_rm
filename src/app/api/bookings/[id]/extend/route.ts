@@ -1,84 +1,98 @@
+// src/app/api/bookings/[id]/extend/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { addHours } from 'date-fns';
+import { addHours, addDays } from 'date-fns';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-type ExtensionType = 'FULL_DAY' | 'HALF_DAY';
-
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // params adalah Promise
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return new NextResponse('Akses ditolak', { status: 401 });
-  }
-  const managedPropertyIds = session.user.managedProperties.map(p => p.id);
+  if (!session?.user) return new NextResponse('Akses ditolak', { status: 401 });
+
+  const { id } = await context.params;
 
   try {
-    const { id: bookingId } = await params; // Wajib di-await
-    const { extensionType, duration } = (await request.json()) as { extensionType: ExtensionType, duration: number };
+    // Menerima parameter baru: extraHalfDay
+    const { duration, type, extraHalfDay } = await request.json(); 
 
+    // 1. Ambil Data Booking Lama
     const booking = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: { 
-        room: {
-          include: {
-            property: true, // Sertakan info properti
-            roomType: true 
-          }
-        } 
-      },
+      where: { id },
+      include: { room: { include: { property: true, roomType: true } } },
     });
 
-    if (!booking || !booking.room) {
-      return new NextResponse('Booking tidak ditemukan', { status: 404 });
+    if (!booking) return new NextResponse('Booking tidak ditemukan', { status: 404 });
+
+    // 2. Cek Hak Akses
+    const managedIds = session.user.managedProperties.map(p => p.id);
+    if (!managedIds.includes(booking.room.propertyId)) {
+        return new NextResponse('Akses properti ditolak', { status: 403 });
     }
 
-    // --- LAPISAN KEAMANAN ---
-    if (!managedPropertyIds.includes(booking.room.propertyId)) {
-      return new NextResponse('Akses ke properti ini ditolak', { status: 403 });
-    }
-    
-    let extensionFee = 0;
-    let hoursToAdd = 0;
+    // 3. Hitung Biaya Tambahan & Waktu Baru
+    let additionalFee = 0;
+    let newExpectedCheckOut = new Date(booking.expectedCheckOut);
     let daysToAdd = 0;
 
-    // --- LOGIKA BARU: HANYA HITUNG BIAYA JIKA PROPERTI TIDAK GRATIS ---
-    if (!booking.room.property.isFree && booking.room.roomType) {
-        if (extensionType === 'FULL_DAY') {
-            daysToAdd = duration > 0 ? duration : 1;
-            extensionFee = booking.room.roomType.priceFullDay * daysToAdd;
-            hoursToAdd = daysToAdd * 24;
-        } else { // HALF_DAY
-            extensionFee = booking.room.roomType.priceHalfDay;
-            hoursToAdd = 12;
+    // --- LOGIKA BARU ---
+    if (booking.room.property.isFree) {
+        // PROPERTI GRATIS
+        if (type === 'FULL_DAY') {
+            newExpectedCheckOut = addDays(newExpectedCheckOut, duration);
+            daysToAdd = duration;
+            if (extraHalfDay) {
+                newExpectedCheckOut = addHours(newExpectedCheckOut, 12);
+            }
+        } else {
+            // Cuma nambah setengah hari
+            newExpectedCheckOut = addHours(newExpectedCheckOut, 12);
         }
     } else {
-        // Jika properti gratis, default perpanjangan adalah 1 hari tanpa biaya
-        daysToAdd = duration > 0 ? duration : 1;
-        hoursToAdd = daysToAdd * 24;
-        extensionFee = 0; // Pastikan tidak ada biaya
+        // PROPERTI BERBAYAR
+        if (type === 'FULL_DAY') {
+            // Hitung Hari Penuh
+            daysToAdd = duration;
+            newExpectedCheckOut = addDays(newExpectedCheckOut, duration);
+            if (booking.room.roomType) {
+                additionalFee += booking.room.roomType.priceFullDay * duration;
+            }
+
+            // Hitung Extra Setengah Hari (Jika ada)
+            if (extraHalfDay) {
+                newExpectedCheckOut = addHours(newExpectedCheckOut, 12);
+                if (booking.room.roomType) {
+                    additionalFee += booking.room.roomType.priceHalfDay;
+                }
+            }
+        } else {
+            // Murni Setengah Hari
+            newExpectedCheckOut = addHours(newExpectedCheckOut, 12);
+            if (booking.room.roomType) {
+                additionalFee += booking.room.roomType.priceHalfDay;
+            }
+        }
     }
 
-    const currentExpected = new Date(booking.expectedCheckOut);
-    const newExpectedCheckOut = addHours(currentExpected, hoursToAdd);
-
-    const updatedBooking = await prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        expectedCheckOut: newExpectedCheckOut,
-        baseFee: { increment: extensionFee },
-        totalFee: { increment: extensionFee },
-        durationInDays: { increment: daysToAdd },
-      },
-      include: { room: true },
+    // 4. Update Database
+    await prisma.booking.update({
+        where: { id },
+        data: {
+            expectedCheckOut: newExpectedCheckOut,
+            baseFee: { increment: additionalFee },
+            totalFee: { increment: additionalFee },
+            durationInDays: { increment: daysToAdd },
+            // Jika ada extraHalfDay, set true. Jika tidak, biarkan nilai lama atau false.
+            isExtraHalfDay: extraHalfDay ? true : booking.isExtraHalfDay
+        }
     });
 
-    return NextResponse.json(updatedBooking);
+    return NextResponse.json({ message: 'Berhasil diperpanjang' });
+
   } catch (error) {
-    console.error('Extend Stay Error:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error("Extend Error:", error);
+    return new NextResponse('Gagal memperpanjang durasi', { status: 500 });
   }
 }
