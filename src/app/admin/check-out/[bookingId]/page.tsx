@@ -1,331 +1,226 @@
-  'use client';
+'use client';
 
-  import { useState, useEffect } from 'react';
-  import { useRouter, useParams } from 'next/navigation';
-  import { format } from 'date-fns';
-  import { Button } from "@/components/ui/button";
-  import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-  import { Input } from '@/components/ui/input';
-  import { Label } from '@/components/ui/label';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { format } from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Receipt, Wallet, Banknote, Clock, AlertTriangle } from 'lucide-react';
 
-  // Tipe data untuk item sanksi
-  type ChargeableItem = {
-    id: string;
-    itemName: string;
-    chargeAmount: number;
-  };
+export default function CheckOutPage() {
+  const router = useRouter();
+  const params = useParams();
+  const bookingId = params.bookingId as string;
 
-  // Tipe data untuk sanksi yang ditambahkan
-  type AddedCharge = {
-    chargeableItemId: string;
-    quantity: number;
-    itemName: string;
-    itemPrice: number;
-  };
+  const [booking, setBooking] = useState<any>(null);
+  const [chargeItems, setChargeItems] = useState<any[]>([]);
+  const [addedCharges, setAddedCharges] = useState<any[]>([]);
+  
+  const [selectedChargeId, setSelectedChargeId] = useState<string>('');
+  const [chargeQty, setChargeQty] = useState<number>(1);
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Helper function untuk menghitung dan merinci denda
-  const calculateLateFeeDetails = (booking: any) => {
-      if (!booking || !booking.room) return { total: 0, breakdown: [] };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [resBooking, resCharges] = await Promise.all([
+          fetch(`/api/bookings/${bookingId}`),
+          fetch('/api/chargeable-items')
+        ]);
 
-      const now = new Date();
-      const totalLateHours = Math.max(0, Math.ceil((now.getTime() - new Date(booking.expectedCheckOut).getTime()) / 3600000));
-      
-      if (totalLateHours === 0) return { total: 0, breakdown: [] };
-
-      const isSpecial = booking.room.type === 'SPECIAL';
-      const rates = {
-          hourlyRate: 20_000,
-          halfDayRate: isSpecial ? 300_000 : 250_000,
-          fullDayRate: isSpecial ? 350_000 : 300_000,
-      };
-
-      let lateFee = 0;
-      const breakdown: { label: string, amount: number }[] = [];
-
-      const fullDaysLate = Math.floor(totalLateHours / 24);
-      if (fullDaysLate > 0) {
-          const fee = fullDaysLate * rates.fullDayRate;
-          lateFee += fee;
-          breakdown.push({ label: `Tambah Paket ${fullDaysLate} Hari Penuh`, amount: fee });
-      }
-
-      const remainingHours = totalLateHours % 24;
-      if (remainingHours > 0) {
-          if (remainingHours <= 11) {
-              const fee = remainingHours * rates.hourlyRate;
-              lateFee += fee;
-              breakdown.push({ label: `Denda ${remainingHours} Jam`, amount: fee });
-          } else if (remainingHours <= 15) {
-              const fee = rates.halfDayRate + ((remainingHours - 12) * rates.hourlyRate);
-              lateFee += fee;
-              breakdown.push({ label: 'Tambah Paket Setengah Hari', amount: rates.halfDayRate });
-              if (remainingHours > 12) {
-                  breakdown.push({ label: `Denda ${remainingHours - 12} Jam`, amount: (remainingHours - 12) * rates.hourlyRate });
-              }
-          } else { // 16-23 jam
-              const scenarioA = rates.halfDayRate + ((remainingHours - 12) * rates.hourlyRate);
-              const fee = Math.min(scenarioA, rates.fullDayRate);
-              lateFee += fee;
-              if (fee === rates.fullDayRate) {
-                  breakdown.push({ label: 'Pembulatan Paket 1 Hari', amount: fee });
-              } else {
-                  // Skenario ini seharusnya tidak terjadi dengan aturan harga sekarang, tapi sebagai cadangan
-                  breakdown.push({ label: 'Tambah Paket Setengah Hari', amount: rates.halfDayRate });
-                  if (remainingHours > 12) {
-                      breakdown.push({ label: `Denda ${remainingHours - 12} Jam`, amount: (remainingHours - 12) * rates.hourlyRate });
-                  }
-              }
-          }
-      }
-
-      return { total: lateFee, breakdown };
-  };
-
-  export default function CheckOutPage() {
-    const router = useRouter();
-    const params = useParams();
-    const bookingId = params.bookingId as string;
-
-    const [booking, setBooking] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    
-    // State untuk perpanjangan durasi
-    const [extensionType, setExtensionType] = useState<'FULL_DAY' | 'HALF_DAY'>('FULL_DAY');
-    const [extensionDuration, setExtensionDuration] = useState(1);
-    
-    // State untuk fitur sanksi
-    const [chargeableItems, setChargeableItems] = useState<ChargeableItem[]>([]);
-    const [selectedChargeId, setSelectedChargeId] = useState<string>('');
-    const [addedCharges, setAddedCharges] = useState<AddedCharge[]>([]);
-
-    // State untuk pembayaran
-    const [paymentMethod, setPaymentMethod] = useState<string | undefined>();
-    const [paymentStatus, setPaymentStatus] = useState<string | undefined>();
-
-    useEffect(() => {
-      if (bookingId) {
-        const fetchData = async () => {
-          setIsLoading(true);
-          // Ambil detail booking dan daftar item sanksi secara bersamaan
-          const [bookingRes, itemsRes] = await Promise.all([
-            fetch(`/api/bookings/${bookingId}`),
-            fetch('/api/chargeable-items')
-          ]);
-
-          if (bookingRes.ok) {
-            const bookingData = await bookingRes.json();
-            setBooking(bookingData);
-            setPaymentMethod(bookingData.paymentMethod);
-            setPaymentStatus(bookingData.paymentStatus);
-          }
-
-          if (itemsRes.ok) {
-            const itemsData = await itemsRes.json();
-            setChargeableItems(itemsData);
-          }
-          
-          setIsLoading(false);
-        };
-        fetchData();
-      }
-    }, [bookingId]);
-
-    const handleExtendStay = async () => {
-    setIsLoading(true); // <-- Tombol dinonaktifkan
-    try {
-      const res = await fetch(`/api/bookings/${bookingId}/extend`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ extensionType, duration: extensionDuration }),
-      });
-      if (res.ok) {
-          const updatedBooking = await res.json();
-          setBooking(updatedBooking);
-      } else {
-          alert('Gagal memperpanjang durasi.');
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Terjadi kesalahan.');
-    } finally {
-      setIsLoading(false); // <-- Tombol diaktifkan kembali, APAPUN YANG TERJADI
-    }
-  };
-    const handleAddCharge = () => {
-    const selectedItem = chargeableItems.find(item => item.id === selectedChargeId);
-    if (selectedItem) {
-      setAddedCharges(prev => [
-        ...prev,
-        {
-          chargeableItemId: selectedItem.id,
-          quantity: 1, // Untuk saat ini kuantitas selalu 1
-          itemName: selectedItem.itemName,
-          itemPrice: selectedItem.chargeAmount,
+        if (resBooking.ok) {
+            const data = await resBooking.json();
+            setBooking(data);
+            if(data.paymentMethod) setPaymentMethod(data.paymentMethod);
         }
+        if (resCharges.ok) setChargeItems(await resCharges.json());
+      } catch (error) {
+        console.error("Error:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [bookingId]);
+
+  const handleAddCharge = () => {
+    if (!selectedChargeId) return;
+    const item = chargeItems.find(c => c.id === selectedChargeId);
+    if (item) {
+      setAddedCharges(prev => [
+        ...prev, 
+        { chargeableItemId: item.id, quantity: chargeQty, itemName: item.itemName, itemPrice: item.itemPrice || item.chargeAmount * chargeQty }
       ]);
-      setSelectedChargeId(''); // Reset dropdown setelah item ditambahkan
+      setChargeQty(1);
     }
   };
 
-    const handleCheckout = async () => {
-    setIsLoading(true);
+  const handleRemoveCharge = (index: number) => {
+    setAddedCharges(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCheckout = async () => {
+    if(!confirm("Pastikan pembayaran sudah diterima. Selesaikan Check-out?")) return;
+    setIsSubmitting(true);
     try {
       await fetch(`/api/bookings/${bookingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          charges: addedCharges.map(({ chargeableItemId, quantity }) => ({ chargeableItemId, quantity })),
-          paymentMethod,
-          paymentStatus,
+            paymentMethod: booking.room.property.isFree ? null : paymentMethod,
+            charges: addedCharges
         }),
       });
-      router.push('/admin');
+      router.push('/admin'); 
       router.refresh();
-    } catch (error) {
-      console.error(error);
-      alert('Gagal melakukan check-out.');
-      setIsLoading(false); // Pastikan loading berhenti jika error
+    } catch (err: any) {
+      alert('Gagal check-out');
+      setIsSubmitting(false);
     }
   };
+
+  if (isLoading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-8 w-8 mx-auto"/> Menghitung tagihan...</div>;
+  if (!booking) return <div className="p-10 text-center text-red-500">Data tidak ditemukan</div>;
+
+  // --- DATA SIMULASI DARI BACKEND ---
+  const sim = booking.simulation || { 
+      totalBillActual: 0, amountPaid: 0, durationDesc: '-', note: '' 
+  };
   
-  if (isLoading || !booking) {
-    return <p className="p-8">Memuat detail booking...</p>;
-  }
+  // Total Frontend Calculation (Sewa + Barang)
+  const chargesTotal = addedCharges.reduce((acc, curr) => acc + curr.itemPrice, 0);
+  const finalTotalToPay = (booking.room.property.isFree ? 0 : sim.totalBillActual) + chargesTotal;
+  const finalRemaining = finalTotalToPay - (booking.amountPaid || 0);
 
-    // --- LOGIKA UTAMA ADA DI SINI ---
-    // Tentukan apakah properti ini gratis setelah data booking tersedia
-    const isFreeProperty = booking.room?.property?.isFree;
+  return (
+    <div className="max-w-5xl mx-auto p-4 md:p-6">
+      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
+        <Receipt className="h-6 w-6"/> Konfirmasi Check-Out & Pembayaran
+      </h1>
 
-    // Kalkulasi biaya hanya jika properti tidak gratis
-    const lateFeeDetails = !isFreeProperty ? calculateLateFeeDetails(booking) : { total: 0, breakdown: [] };
-    const chargesFee = addedCharges.reduce((total, charge) => total + charge.itemPrice * charge.quantity, 0);
-    const currentTotal = isFreeProperty ? 0 : (booking.baseFee + lateFeeDetails.total + chargesFee);
-
-    return (
-      <div className="p-8 max-w-2xl mx-auto">
-        <Card>
-          <CardHeader><CardTitle>Detail Booking & Check-out</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2 text-sm">
-              <p><strong>Nomor Kamar:</strong> {booking.room.roomNumber}</p>
-              <p><strong>Nama Wali Santri:</strong> {booking.guestName}</p>
-              <p><strong>Nama Santri:</strong> {booking.studentName}</p>
-              <p><strong>Waktu Check-in:</strong> {format(new Date(booking.checkIn), 'dd MMM yyyy, HH:mm')}</p>
-              <p><strong>Seharusnya Check-out:</strong> {format(new Date(booking.expectedCheckOut), 'dd MMM yyyy, HH:mm')}</p>
-            </div>
-            
-            {!isFreeProperty && (
-              <>
-                        <div className="border-t pt-4">
-              <h3 className="font-semibold mb-2">Perpanjang Durasi Menginap</h3>
-              <div className="grid grid-cols-3 items-end gap-2">
-                <div className="col-span-3 sm:col-span-1">
-                    <Label>Tipe</Label>
-                    <Select value={extensionType} onValueChange={(v) => setExtensionType(v as 'FULL_DAY' | 'HALF_DAY')}>
-                        <SelectTrigger><SelectValue placeholder="Pilih durasi..." /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="FULL_DAY">Per Hari</SelectItem>
-                            <SelectItem value="HALF_DAY">Setengah Hari</SelectItem>
-                        </SelectContent>
-                    </Select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* KOLOM KIRI: INFO & DURASI */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="bg-gray-50 pb-3"><CardTitle>Informasi Menginap</CardTitle></CardHeader>
+            <CardContent className="pt-4 space-y-3 text-sm">
+                <div className="grid grid-cols-3 gap-2">
+                    <span className="text-gray-500">Tamu</span> <span className="col-span-2 font-medium">: {booking.guestName}</span>
+                    <span className="text-gray-500">Kamar</span> <span className="col-span-2 font-medium">: {booking.room.roomNumber}</span>
+                    <span className="text-gray-500">Check-In</span> <span className="col-span-2">: {format(new Date(booking.checkIn), 'dd MMM, HH:mm', { locale: localeID })}</span>
+                    <span className="text-gray-500">Check-Out</span> <span className="col-span-2 font-bold text-blue-600">: SEKARANG</span>
                 </div>
-
-                {extensionType === 'FULL_DAY' && (
-                  <div className="col-span-3 sm:col-span-1">
-                      <Label>Jumlah Hari</Label>
-                      <Input type="number" value={extensionDuration} onChange={(e) => setExtensionDuration(parseInt(e.target.value))} min="1" />
-                  </div>
-                )}
                 
-                <div className="col-span-3 sm:col-span-1">
-                  <Button onClick={handleExtendStay} variant="outline" className="w-full" disabled={isLoading}>
-                    Tambah Durasi
-                  </Button>
+                {/* Highlight Durasi Aktual */}
+                <div className="bg-blue-50 p-3 rounded-md border border-blue-100 mt-2">
+                    <p className="font-semibold flex items-center gap-2 text-blue-800">
+                        <Clock className="w-4 h-4" /> Durasi Aktual: {sim.durationDesc}
+                    </p>
+                    {sim.note && (
+                        <p className="text-xs text-orange-600 mt-1 font-medium bg-orange-50 p-1 rounded inline-block">
+                           {sim.note}
+                        </p>
+                    )}
                 </div>
-              </div>
-            </div>
-            
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-2">Tambah Sanksi / Biaya Tambahan</h3>
-              <div className="flex items-center space-x-2">
-                <Select onValueChange={setSelectedChargeId} value={selectedChargeId}>
-                  <SelectTrigger><SelectValue placeholder="Pilih item..." /></SelectTrigger>
-                  <SelectContent>
-                    {chargeableItems.map(item => (
-                      <SelectItem key={item.id} value={item.id}>{item.itemName} - Rp {item.chargeAmount.toLocaleString('id-ID')}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button onClick={handleAddCharge} disabled={!selectedChargeId}>Tambah</Button>
-              </div>
-            </div>
-            
-            <div className="border-t pt-4">
-          <h3 className="font-semibold mb-2">Status Pembayaran</h3>
-          {booking.paymentStatus === 'PAID' ? (
-              <p className="text-green-600 font-medium">Sudah Lunas ({booking.paymentMethod})</p>
-          ) : (
-              <div className="grid grid-cols-2 gap-4">
-                  <div>
-                      <Label>Metode Pembayaran</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                          <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="CASH">Cash</SelectItem>
-                              <SelectItem value="TRANSFER">Transfer</SelectItem>
-                          </SelectContent>
-                      </Select>
-                  </div>
-                  <div>
-                      <Label>Status</Label>
-                      <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-                          <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="PAID">Lunas</SelectItem>
-                              <SelectItem value="UNPAID">Belum Lunas</SelectItem>
-                          </SelectContent>
-                      </Select>
-                  </div>
-              </div>
-          )}
+            </CardContent>
+          </Card>
+
+          {/* Form Sanksi Barang */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle>Denda Kerusakan / Barang</CardTitle></CardHeader>
+            <CardContent className="pt-2 space-y-4">
+               <div className="flex gap-2">
+                  <Select value={selectedChargeId} onValueChange={setSelectedChargeId}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Pilih Item..." /></SelectTrigger>
+                    <SelectContent>
+                      {chargeItems.map((item: any) => (
+                        <SelectItem key={item.id} value={item.id}>{item.itemName} (+{item.chargeAmount.toLocaleString()})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input type="number" min={1} className="w-20" value={chargeQty} onChange={e => setChargeQty(Number(e.target.value))} />
+               </div>
+               <Button variant="secondary" onClick={handleAddCharge} disabled={!selectedChargeId} className="w-full">Tambah</Button>
+               
+               {addedCharges.length > 0 && (
+                 <ul className="space-y-2 mt-2">
+                   {addedCharges.map((c, i) => (
+                     <li key={i} className="flex justify-between bg-gray-50 p-2 rounded text-sm">
+                        <span>{c.quantity}x {c.itemName}</span>
+                        <div className="flex gap-3">
+                            <b>Rp {c.itemPrice.toLocaleString()}</b>
+                            <button onClick={() => handleRemoveCharge(i)} className="text-red-500 font-bold">x</button>
+                        </div>
+                     </li>
+                   ))}
+                 </ul>
+               )}
+            </CardContent>
+          </Card>
         </div>
 
-            <div className="mt-4 p-4 bg-secondary rounded-lg space-y-2">
-              <h3 className="font-semibold mb-2">Rincian Biaya</h3>
-              <div className="flex justify-between text-sm">
-                <span>Tarif Dasar:</span> 
-                <span>Rp {booking.baseFee.toLocaleString('id-ID')}</span>
-              </div>
+        {/* KOLOM KANAN: TAGIHAN */}
+        <div className="space-y-6">
+            <Card className="border-t-4 border-t-primary shadow-lg">
+                <CardHeader className="bg-primary/5 pb-4">
+                    <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5"/> Tagihan Akhir</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                    
+                    <div className="flex justify-between items-center text-lg">
+                        <span className="text-gray-700">Biaya Sewa (Aktual)</span>
+                        <span className="font-bold">Rp {booking.room.property.isFree ? 0 : sim.totalBillActual.toLocaleString('id-ID')}</span>
+                    </div>
 
-              {lateFeeDetails.breakdown.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm text-destructive">
-                      <span>{item.label}:</span>
-                      <span>Rp {item.amount.toLocaleString('id-ID')}</span>
-                  </div>
-              ))}
+                    {chargesTotal > 0 && (
+                        <div className="flex justify-between items-center text-orange-600">
+                            <span>Sanksi Barang</span>
+                            <span>+ Rp {chargesTotal.toLocaleString('id-ID')}</span>
+                        </div>
+                    )}
 
-              {addedCharges.map((charge, index) => (
-                <div key={index} className="flex justify-between text-sm text-destructive">
-                  <span>Sanksi ({charge.itemName}):</span>
-                  <span>Rp {charge.itemPrice.toLocaleString('id-ID')}</span>
-                </div>
-              ))}
+                    <div className="flex justify-between items-center text-green-600 bg-green-50 p-2 rounded">
+                        <span className="flex items-center gap-1"><Banknote className="h-4 w-4"/> Sudah Dibayar (DP)</span>
+                        <span className="font-semibold">- Rp {(booking.amountPaid || 0).toLocaleString('id-ID')}</span>
+                    </div>
 
-              <div className="flex justify-between font-bold text-lg mt-2 border-t pt-2">
-                <span>Total Tagihan:</span> 
-                <span>Rp {currentTotal.toLocaleString('id-ID')}</span>
-              </div>
-            </div>
-            </>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button onClick={handleCheckout} disabled={isLoading} className="w-full" size="lg">
-              {isLoading ? 'Memproses...' : 'Konfirmasi & Selesaikan Check-out'}
-            </Button>
-          </CardFooter>
-        </Card>
+                    <Separator className="border-dashed my-2"/>
+
+                    <div className="flex justify-between items-center text-xl font-extrabold text-blue-900 bg-blue-50 p-4 rounded-lg">
+                        <span>{finalRemaining >= 0 ? "KEKURANGAN" : "KEMBALIAN"}</span>
+                        <span>{finalRemaining < 0 ? "-" : ""} Rp {Math.abs(finalRemaining).toLocaleString('id-ID')}</span>
+                    </div>
+
+                    {!booking.room.property.isFree && finalRemaining > 0 && (
+                        <div className="mt-4">
+                            <Label>Metode Pelunasan</Label>
+                            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="CASH">Tunai (Cash)</SelectItem>
+                                    <SelectItem value="TRANSFER">Transfer</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                </CardContent>
+                <CardFooter>
+                    <Button onClick={handleCheckout} disabled={isSubmitting} size="lg" className="w-full bg-blue-700 hover:bg-blue-800">
+                        {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : "Konfirmasi Pembayaran & Selesai"}
+                    </Button>
+                </CardFooter>
+            </Card>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
