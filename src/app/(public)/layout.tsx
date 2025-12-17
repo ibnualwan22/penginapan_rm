@@ -30,7 +30,7 @@ export default function PublicLayout({
         <div className="container">
           <div className="menu-bg-wrap">
             <div className="site-navigation">
-              <a href="/" className="logo m-0 float-start">GPS PRO</a>
+              <a href="/" className="logo m-0 float-start">Penginapan Amtsilati</a>
               <ul className="js-clone-nav d-none d-lg-inline-block text-start site-menu float-end">
                 <li className="active"><a href="/">Home</a></li>
                 <li className="active"><a href="/properties">Daftar Kamar</a></li> 
