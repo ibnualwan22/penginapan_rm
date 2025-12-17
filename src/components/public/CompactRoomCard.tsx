@@ -5,13 +5,31 @@ type RoomType = { priceFullDay?: number | null };
 type Room = {
   id: string;
   roomNumber: string;
-  status?: "OCCUPIED" | "AVAILABLE" | string;
+  // Pastikan backend mengirim status 'MAINTENANCE' jika sedang perbaikan
+  status?: "OCCUPIED" | "AVAILABLE" | "MAINTENANCE" | string;
   property: { name: string; isFree: boolean };
   roomType?: RoomType | null;
   images?: RoomImage[];
 };
 
 export default function RoomCard({ room }: { room: Room }) {
+  // 1. Cek Status Ketersediaan
+  const isOccupied = room.status === "OCCUPIED";
+  const isMaintenance = room.status === "MAINTENANCE";
+  const isAvailable = !isOccupied && !isMaintenance; // Bisa dipencet hanya jika Available
+
+  // Label Status untuk UI
+  let statusLabel = "";
+  let statusColor = "";
+
+  if (isOccupied) {
+    statusLabel = "TERISI";
+    statusColor = "bg-red-600";
+  } else if (isMaintenance) {
+    statusLabel = "DALAM PERAWATAN";
+    statusColor = "bg-yellow-600";
+  }
+
   // Gratis jika flag isFree true ATAU nama properti mengandung "Raudlatul Jannah"
   const isRJFree = room.property.isFree || /raudlatul\s*jannah/i.test(room.property.name);
 
@@ -40,49 +58,84 @@ export default function RoomCard({ room }: { room: Room }) {
       : undefined;
 
   return (
-    <div className="rounded-xl overflow-hidden border bg-white shadow-sm hover:shadow-md transition-shadow">
-      {/* Gambar besar (responsif) */}
+    <div className={`rounded-xl overflow-hidden border bg-white shadow-sm transition-shadow ${isAvailable ? 'hover:shadow-md' : 'opacity-80'}`}>
+      
+      {/* BAGIAN GAMBAR */}
       <div className="relative w-full h-56 sm:h-64 md:h-72 lg:h-80 overflow-hidden">
-        <Link href={`/properties/${room.id}`} className="block" prefetch={false}>
-          <img
-            src={imageUrl}
-            alt={`Foto Kamar ${room.roomNumber}`}
-            className="absolute inset-0 w-full h-full object-cover"
-            loading="lazy"
-          />
-        </Link>
+        {/* Jika Available, bungkus dengan Link. Jika tidak, div biasa */}
+        {isAvailable ? (
+          <Link href={`/properties/${room.id}`} className="block h-full" prefetch={false}>
+            <img
+              src={imageUrl}
+              alt={`Foto Kamar ${room.roomNumber}`}
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+              loading="lazy"
+            />
+          </Link>
+        ) : (
+          <div className="h-full w-full relative">
+            <img
+              src={imageUrl}
+              alt={`Foto Kamar ${room.roomNumber}`}
+              className="absolute inset-0 w-full h-full object-cover grayscale" // Efek hitam putih
+              loading="lazy"
+            />
+            {/* Overlay Status (Gelap + Teks) */}
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+              <span className={`${statusColor} text-white px-4 py-2 rounded font-bold text-sm tracking-wide shadow-lg`}>
+                {statusLabel}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Konten */}
+      {/* KONTEN */}
       <div className="p-4">
         {price && (
           <div className="mb-2">
-            <span className="text-teal-800 font-semibold text-lg sm:text-xl">
+            <span className={`font-semibold text-lg sm:text-xl ${isAvailable ? 'text-teal-800' : 'text-gray-500'}`}>
               {price}
             </span>
-            {!isRJFree && <div className="h-[2px] bg-teal-800 w-36 mt-1" />}
+            {!isRJFree && <div className={`h-[2px] w-36 mt-1 ${isAvailable ? 'bg-teal-800' : 'bg-gray-300'}`} />}
           </div>
         )}
 
         <span className="block text-xs text-gray-500">{room.property.name}</span>
-        <h3 className="text-xl font-semibold mt-1">Kamar {room.roomNumber}</h3>
+        <h3 className={`text-xl font-semibold mt-1 ${!isAvailable && 'text-gray-600'}`}>
+            Kamar {room.roomNumber}
+        </h3>
 
+        {/* TOMBOL AKSI */}
         <div className="mt-3 flex gap-2 flex-wrap">
-          <Link
-            href={`/properties/${room.id}`}
-            className="btn btn-outline-primary btn-sm"
-            prefetch={false}
-          >
-            Lihat detail
-          </Link>
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary btn-sm"
-          >
-            Hubungi via WhatsApp
-          </a>
+          {isAvailable ? (
+            // Jika Available: Tampilkan Tombol Normal
+            <>
+              <Link
+                href={`/properties/${room.id}`}
+                className="btn btn-outline-primary btn-sm"
+                prefetch={false}
+              >
+                Lihat detail
+              </Link>
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-sm"
+              >
+                Hubungi via WhatsApp
+              </a>
+            </>
+          ) : (
+            // Jika Tidak Available: Tampilkan Tombol Disabled
+            <button
+              disabled
+              className="w-full py-2 px-4 bg-gray-100 text-gray-500 rounded border border-gray-200 text-sm font-medium cursor-not-allowed text-center"
+            >
+              {isOccupied ? "Kamar Sedang Terisi" : "Sedang Dalam Perbaikan"}
+            </button>
+          )}
         </div>
       </div>
     </div>
