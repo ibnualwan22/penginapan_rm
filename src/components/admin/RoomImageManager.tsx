@@ -18,6 +18,20 @@ export default function RoomImageManager({ roomId, initialImages }: { roomId: st
   
   // 1. Gunakan useRef untuk menyimpan instance widget agar tidak hilang saat re-render
   const cloudinaryWidgetRef = useRef<any>(null);
+    useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  const interval = setInterval(() => {
+    // @ts-ignore
+    if (window.cloudinary && !cloudinaryWidgetRef.current) {
+      initializeWidget();
+      clearInterval(interval);
+    }
+  }, 200);
+
+  return () => clearInterval(interval);
+}, []);
+
 
   // 2. Fungsi untuk inisialisasi widget
   const initializeWidget = () => {
@@ -111,28 +125,23 @@ export default function RoomImageManager({ roomId, initialImages }: { roomId: st
 
   // 3. Tombol Handler: Cukup panggil .open()
   const handleOpenWidget = () => {
-    if (cloudinaryWidgetRef.current) {
-        cloudinaryWidgetRef.current.open();
-    } else {
-        // Fallback jika ref belum siap (misal internet lambat load script)
-        initializeWidget();
-        if (cloudinaryWidgetRef.current) {
-            cloudinaryWidgetRef.current.open();
-        } else {
-            alert("Widget belum siap, silakan tunggu sejenak dan coba lagi.");
-        }
-    }
-  };
+  if (!cloudinaryWidgetRef.current) {
+    alert("Widget belum siap, tunggu sebentar...");
+    return;
+  }
+  cloudinaryWidgetRef.current.open();
+};
+
 
   return (
     <div className="space-y-4">
       
       {/* Load Script dengan strategi lazyOnload agar tidak memblokir UI */}
       <Script 
-        src="https://upload-widget.cloudinary.com/global/all.js" 
-        onLoad={initializeWidget} // Inisialisasi otomatis setelah script selesai dimuat
-        strategy="lazyOnload"
-      />
+  src="https://upload-widget.cloudinary.com/global/all.js"
+  strategy="afterInteractive"
+/>
+
 
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold flex items-center gap-2">
