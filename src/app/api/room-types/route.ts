@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-// GET: Ambil semua tipe kamar
 export async function GET() {
   const types = await prisma.roomType.findMany({
     orderBy: { name: 'asc' }
@@ -11,24 +10,22 @@ export async function GET() {
   return NextResponse.json(types);
 }
 
-// POST: Buat tipe kamar baru
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse('Unauthorized', { status: 401 });
 
   try {
-    const { name, priceHalfDay, priceFullDay } = await request.json();
+    const { name, priceHalfDay, priceFullDay, facilities } = await request.json();
     
-    // Validasi sederhana
-    if (!name || !priceHalfDay || !priceFullDay) {
-        return new NextResponse('Data tidak lengkap', { status: 400 });
-    }
+    // Pastikan facilities adalah array, jika tidak (misal string), jadikan array kosong
+    const facilitiesArray = Array.isArray(facilities) ? facilities : [];
 
     const newType = await prisma.roomType.create({
       data: {
         name,
         priceHalfDay: Number(priceHalfDay),
-        priceFullDay: Number(priceFullDay)
+        priceFullDay: Number(priceFullDay),
+        facilities: facilitiesArray
       }
     });
     return NextResponse.json(newType);
@@ -37,20 +34,22 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT: Update harga/nama
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse('Unauthorized', { status: 401 });
 
   try {
-    const { id, name, priceHalfDay, priceFullDay } = await request.json();
+    const { id, name, priceHalfDay, priceFullDay, facilities } = await request.json();
     
+    const facilitiesArray = Array.isArray(facilities) ? facilities : [];
+
     const updatedType = await prisma.roomType.update({
       where: { id },
       data: {
         name,
         priceHalfDay: Number(priceHalfDay),
-        priceFullDay: Number(priceFullDay)
+        priceFullDay: Number(priceFullDay),
+        facilities: facilitiesArray
       }
     });
     return NextResponse.json(updatedType);
@@ -59,7 +58,7 @@ export async function PUT(request: Request) {
   }
 }
 
-// DELETE: Hapus tipe kamar
+// ... (DELETE biarkan sama seperti sebelumnya)
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse('Unauthorized', { status: 401 });
@@ -75,6 +74,6 @@ export async function DELETE(request: Request) {
     });
     return NextResponse.json({ message: 'Deleted' });
   } catch (error) {
-    return new NextResponse('Gagal menghapus (Mungkin sedang dipakai di kamar)', { status: 500 });
+    return new NextResponse('Gagal menghapus', { status: 500 });
   }
 }

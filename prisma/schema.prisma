@@ -103,10 +103,12 @@ enum RoomStatus {
 }
 
 model RoomType {
-  id            String @id @default(cuid())
-  name          String @unique
+  id            String   @id @default(cuid())
+  name          String   @unique
   priceHalfDay  Float
   priceFullDay  Float
+  
+  facilities    String[] @default([]) // [BARU] Menyimpan list fasilitas
   
   rooms         Room[]
 }
