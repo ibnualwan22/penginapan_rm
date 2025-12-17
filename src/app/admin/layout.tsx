@@ -20,8 +20,7 @@ export default async function AdminLayout({
   const session = await getServerSession(authOptions);
   const userPermissions: string[] = session?.user?.permissions ?? [];
   const managed = session?.user?.managedProperties ?? [];
-
-  // --- LOGIKA UNTUK JUDUL DINAMIS ---
+  const showPriceMenu = session?.user?.managedProperties?.some((p: any) => !p.isFree);  // --- LOGIKA UNTUK JUDUL DINAMIS ---
   let sidebarTitle = "Panel Admin"; // default
   if (session?.user?.role !== "Super Administrator" && managed.length > 0) {
     sidebarTitle = managed.map((p) => p.name).join(", ");
@@ -62,6 +61,7 @@ export default async function AdminLayout({
               {/* Manajemen Harga */}
               {userPermissions.includes("prices:read") && (
                 <li className="mb-4">
+                  {showPriceMenu && (
                   <Link
                     href="/admin/prices"
                     className="flex items-center p-2 rounded hover:bg-gray-700"
@@ -69,6 +69,7 @@ export default async function AdminLayout({
                     <DollarSign className="h-5 w-5 mr-3" />
                     Manajemen Harga
                   </Link>
+                  )}
                 </li>
               )}
 

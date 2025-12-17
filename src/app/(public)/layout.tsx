@@ -34,7 +34,7 @@ export default function PublicLayout({
               <ul className="js-clone-nav d-none d-lg-inline-block text-start site-menu float-end">
                 <li className="active"><a href="/">Home</a></li>
                 <li className="active"><a href="/properties">Daftar Kamar</a></li> 
-                <li><a href="/about">Tentang Kami</a></li>
+                <li><a href="https://lynk.id/amtsilatipusat?utm_source=ig&utm_medium=social&utm_content=link_in_bio&fbclid=PAb21jcAOvOp1leHRuA2FlbQIxMQBzcnRjBmFwcF9pZA81NjcwNjczNDMzNTI0MjcAAadES9pITCLEkucJao99To2E1MkyR4u3MFDq1kGrWnXQexaCZWn4OFPjr18tZw_aem_8rrrblkF4DqRggcU2wWdEw">Tentang Kami</a></li>
                 <li><a href="/contact">Kontak</a></li>
               </ul>
               <a href="#" className="burger light me-auto float-end mt-1 site-menu-toggle js-menu-toggle d-inline-block d-lg-none" data-toggle="collapse" data-target="#main-navbar">
