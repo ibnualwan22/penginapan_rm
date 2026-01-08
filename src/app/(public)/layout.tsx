@@ -1,5 +1,5 @@
 import Script from "next/script";
-
+import Footer from '@/components/public/Footer';
 export default function PublicLayout({
   children,
 }: {
@@ -47,23 +47,7 @@ export default function PublicLayout({
 
       {children}
 
-      <div className="site-footer">
-        <div className="container">
-          <div className="row">
-            <div className="col-lg-4">
-              <div className="widget">
-                <h3>Kontak</h3>
-                <address>Lokasi Penginapan, Jepara, Jawa Tengah</address>
-                <ul className="list-unstyled links">
-                  <li><a href="tel://6285842817105">+62 858-4281-7105 (RM)</a></li>
-                  <li><a href="tel://6285741193660">+62 857-4119-3660 (RJ)</a></li>
-                  <li><a href="mailto:info@ponpesrm.com">info@ponpesrm.com</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Footer />
 
       <Script src="/js/bootstrap.bundle.min.js" strategy="afterInteractive" />
 <Script src="/js/tiny-slider.js"       strategy="afterInteractive" />
